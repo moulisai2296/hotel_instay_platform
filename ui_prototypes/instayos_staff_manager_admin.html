@@ -1,0 +1,744 @@
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+--navy:#0F1E3C;--navy2:#162849;--gold:#C9A84C;--gold2:#E2C06A;
+--stone:#F2EDE8;--white:#FAFAF8;--surface:#F7F5F2;
+--teal:#1D9E75;--tealb:#E1F5EE;--tealc:#0F6E56;
+--blue:#185FA5;--blueb:#E6F1FB;--bluec:#0C447C;
+--amber:#E8930A;--amberb:#FAEEDA;--amberc:#854F0B;
+--purple:#6B4FBB;--purpleb:#EEEDFE;--purplec:#3C3489;
+--pink:#C24B8A;--pinkb:#FBEAF0;--pinkc:#72243E;
+--gray:#5F5E5A;--grayb:#F1EFE8;--grayc:#2C2C2A;
+--red:#E03F3F;--redb:#FCEBEB;--redc:#791F1F;
+--green:#2D9E6B;--greenb:#EAF3DE;--greenc:#27500A;
+--border:rgba(15,30,60,0.1);--border2:rgba(15,30,60,0.18);
+--text:#1a1a2e;--text2:#5a5a72;--text3:#9a9aaa;
+}
+body{font-family:'DM Sans',system-ui,sans-serif;background:#eae6e0;padding:1rem;}
+
+/* layout shell */
+.app{background:var(--white);border-radius:20px;overflow:hidden;border:0.5px solid var(--border);min-height:700px;display:flex;flex-direction:column;}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:.75rem 1.5rem;background:var(--navy);border-bottom:0.5px solid rgba(255,255,255,0.08);}
+.topbar-logo{font-size:16px;font-weight:700;color:var(--gold);letter-spacing:.05em;}
+.topbar-logo span{color:white;}
+.topbar-right{display:flex;align-items:center;gap:.75rem;}
+.topbar-role{font-size:11px;font-weight:600;padding:.25rem .75rem;border-radius:20px;}
+.role-staff{background:rgba(29,158,117,0.2);color:#4ECBA0;}
+.role-mgr{background:rgba(232,147,10,0.2);color:#F5B840;}
+.role-admin{background:rgba(107,79,187,0.2);color:#B89EF0;}
+.topbar-user{font-size:12px;color:rgba(255,255,255,0.6);}
+.topbar-notif{width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;}
+.topbar-notif i{font-size:16px;color:rgba(255,255,255,0.7);}
+.notif-dot{width:7px;height:7px;border-radius:50%;background:var(--red);position:absolute;top:5px;right:5px;border:1.5px solid var(--navy);}
+.avatar{width:30px;height:30px;border-radius:50%;background:var(--gold);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--navy);}
+
+.main{display:flex;flex:1;min-height:640px;}
+.sidebar{width:200px;background:var(--surface);border-right:0.5px solid var(--border);padding:1rem 0;flex-shrink:0;display:flex;flex-direction:column;}
+.sidebar-section{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);padding:.5rem 1.25rem .25rem;}
+.nav-item{display:flex;align-items:center;gap:.6rem;padding:.6rem 1.25rem;cursor:pointer;font-size:13px;color:var(--text2);border-left:2px solid transparent;transition:all .12s;}
+.nav-item i{font-size:16px;}
+.nav-item:hover{background:rgba(15,30,60,0.04);color:var(--text);}
+.nav-item.active{background:rgba(201,168,76,0.1);color:var(--navy);font-weight:600;border-left-color:var(--gold);}
+.nav-item.active i{color:var(--gold);}
+.sidebar-bottom{margin-top:auto;padding:1rem;}
+
+.content{flex:1;overflow-y:auto;padding:1.5rem;background:var(--white);}
+
+/* role switcher */
+.role-tabs{display:flex;gap:.5rem;margin-bottom:1.25rem;}
+.rtab{padding:.45rem 1rem;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;border:0.5px solid var(--border2);color:var(--text2);background:transparent;}
+.rtab.active{background:var(--navy);color:white;border-color:var(--navy);}
+
+/* screens */
+.view{display:none;}
+.view.active{display:block;}
+
+/* cards & layout */
+.page-title{font-size:18px;font-weight:700;color:var(--text);margin-bottom:1rem;}
+.card{background:white;border:0.5px solid var(--border);border-radius:14px;padding:1rem 1.25rem;margin-bottom:.75rem;}
+.card-title{font-size:13px;font-weight:700;color:var(--text);margin-bottom:.75rem;display:flex;align-items:center;gap:.4rem;}
+.card-title i{font-size:15px;color:var(--gold);}
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:.75rem;margin-bottom:1.25rem;}
+.kpi{background:var(--surface);border-radius:12px;padding:1rem;border:0.5px solid var(--border);}
+.kpi-label{font-size:11px;color:var(--text2);margin-bottom:.25rem;}
+.kpi-val{font-size:22px;font-weight:700;color:var(--text);}
+.kpi-sub{font-size:10px;color:var(--text3);margin-top:.15rem;}
+.kpi-val.red{color:var(--red);}
+.kpi-val.green{color:var(--green);}
+.kpi-val.amber{color:var(--amber);}
+
+/* badges */
+.badge{display:inline-flex;align-items:center;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;}
+.b-hk{background:var(--tealb);color:var(--tealc);}
+.b-fb{background:var(--blueb);color:var(--bluec);}
+.b-mt{background:var(--amberb);color:var(--amberc);}
+.b-co{background:var(--purpleb);color:var(--purplec);}
+.b-sp{background:var(--pinkb);color:var(--pinkc);}
+.b-fd{background:var(--grayb);color:var(--grayc);}
+.b-pending{background:var(--amberb);color:var(--amberc);}
+.b-progress{background:var(--blueb);color:var(--bluec);}
+.b-done{background:var(--greenb);color:var(--greenc);}
+.b-escalated{background:var(--redb);color:var(--redc);}
+.priority-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.p-high{background:var(--red);}
+.p-med{background:var(--amber);}
+.p-low{background:var(--green);}
+
+/* kanban */
+.kanban{display:grid;grid-template-columns:repeat(3,1fr);gap:.75rem;margin-bottom:1rem;}
+.k-col{background:var(--surface);border-radius:12px;padding:.75rem;border:0.5px solid var(--border);}
+.k-col-head{font-size:12px;font-weight:700;color:var(--text2);margin-bottom:.6rem;display:flex;align-items:center;justify-content:space-between;}
+.k-count{background:var(--border);border-radius:20px;font-size:10px;padding:1px 7px;color:var(--text2);}
+.req-card{background:white;border:0.5px solid var(--border);border-radius:10px;padding:.75rem;margin-bottom:.5rem;cursor:pointer;transition:all .12s;}
+.req-card:hover{border-color:var(--gold);box-shadow:0 2px 8px rgba(201,168,76,0.15);}
+.req-card-top{display:flex;align-items:flex-start;justify-content:space-between;gap:.5rem;margin-bottom:.4rem;}
+.req-title{font-size:12px;font-weight:600;color:var(--text);}
+.req-room{font-size:11px;color:var(--text2);}
+.req-meta{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;margin-top:.35rem;}
+.req-time{font-size:10px;color:var(--text3);}
+.assign-btn{font-size:10px;font-weight:600;color:var(--navy);border:0.5px solid var(--navy);border-radius:20px;padding:2px 8px;cursor:pointer;margin-top:.35rem;display:inline-block;}
+.assign-btn:hover{background:var(--navy);color:white;}
+
+/* slide panel */
+.panel-overlay{display:none;position:absolute;inset:0;background:rgba(15,30,60,0.3);z-index:50;border-radius:20px;}
+.panel-overlay.show{display:block;}
+.slide-panel{position:absolute;right:0;top:0;bottom:0;width:320px;background:white;border-left:0.5px solid var(--border);border-radius:0 20px 20px 0;padding:1.5rem;overflow-y:auto;z-index:51;}
+.panel-close{position:absolute;top:1rem;right:1rem;width:28px;height:28px;border-radius:50%;background:var(--surface);display:flex;align-items:center;justify-content:center;cursor:pointer;border:0.5px solid var(--border);}
+.panel-close i{font-size:14px;color:var(--text2);}
+.panel-title{font-size:16px;font-weight:700;color:var(--text);margin-bottom:.25rem;padding-right:2rem;}
+.panel-sub{font-size:12px;color:var(--text2);margin-bottom:1rem;}
+.panel-section{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--text3);margin:1rem 0 .4rem;}
+.detail-row{display:flex;justify-content:space-between;font-size:12px;padding:.3rem 0;border-bottom:0.5px solid var(--border);color:var(--text2);}
+.detail-row span:last-child{color:var(--text);font-weight:500;}
+.timeline-item{display:flex;gap:.6rem;margin-bottom:.6rem;}
+.tl-dot{width:8px;height:8px;border-radius:50%;margin-top:4px;flex-shrink:0;}
+.tl-text{font-size:12px;color:var(--text2);line-height:1.4;}
+.tl-time{font-size:10px;color:var(--text3);}
+.action-btns{display:flex;flex-direction:column;gap:.5rem;margin-top:1rem;}
+.abtn{padding:.6rem 1rem;border-radius:10px;font-size:12px;font-weight:600;cursor:pointer;text-align:center;border:0.5px solid var(--border);}
+.abtn-primary{background:var(--navy);color:white;border-color:var(--navy);}
+.abtn-success{background:var(--greenb);color:var(--greenc);border-color:var(--green);}
+.abtn-danger{background:var(--redb);color:var(--redc);border-color:var(--red);}
+
+/* dept cards */
+.dept-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.75rem;margin-bottom:1.25rem;}
+.dept-card{background:var(--surface);border:0.5px solid var(--border);border-radius:12px;padding:1rem;cursor:pointer;transition:all .12s;}
+.dept-card:hover{border-color:var(--gold);}
+.dept-card.status-ok{border-left:3px solid var(--green);}
+.dept-card.status-warn{border-left:3px solid var(--amber);}
+.dept-card.status-bad{border-left:3px solid var(--red);}
+.dept-name{font-size:13px;font-weight:700;color:var(--text);margin-bottom:.4rem;}
+.dept-active{font-size:22px;font-weight:700;color:var(--text);}
+.dept-pending{font-size:11px;color:var(--text2);}
+.dept-spark{height:28px;display:flex;align-items:flex-end;gap:2px;margin-top:.5rem;}
+.spark-bar{width:8px;border-radius:2px 2px 0 0;background:var(--border2);}
+.spark-bar.hi{background:var(--gold);}
+
+/* guest timeline */
+.gt-guest-card{background:var(--surface);border-radius:12px;padding:1rem;display:flex;gap:.75rem;align-items:center;margin-bottom:1rem;border:0.5px solid var(--border);}
+.gt-avatar{width:44px;height:44px;border-radius:50%;background:var(--navy);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:var(--gold);flex-shrink:0;}
+.gt-name{font-size:14px;font-weight:700;color:var(--text);}
+.gt-meta{font-size:11px;color:var(--text2);}
+.tl-full{padding-left:.5rem;}
+.tl-full-item{display:flex;gap:.75rem;margin-bottom:.75rem;position:relative;}
+.tl-full-item::before{content:'';position:absolute;left:14px;top:22px;bottom:-10px;width:1px;background:var(--border);}
+.tl-full-item:last-child::before{display:none;}
+.tl-icon{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;border:0.5px solid var(--border);}
+.tl-icon i{font-size:13px;}
+.tl-body{flex:1;}
+.tl-event{font-size:12px;font-weight:600;color:var(--text);}
+.tl-desc{font-size:11px;color:var(--text2);}
+.tl-ts{font-size:10px;color:var(--text3);}
+
+/* alerts */
+.alert-card{background:white;border:0.5px solid var(--border);border-left:3px solid var(--red);border-radius:12px;padding:.85rem 1rem;margin-bottom:.6rem;display:flex;gap:.75rem;align-items:flex-start;}
+.alert-icon{width:32px;height:32px;border-radius:8px;background:var(--redb);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.alert-icon i{font-size:15px;color:var(--red);}
+.alert-icon.warn{background:var(--amberb);}
+.alert-icon.warn i{color:var(--amber);}
+.alert-title{font-size:12px;font-weight:700;color:var(--text);margin-bottom:2px;}
+.alert-desc{font-size:11px;color:var(--text2);}
+.alert-action{font-size:11px;font-weight:700;color:var(--navy);cursor:pointer;margin-top:.35rem;}
+
+/* table */
+.data-table{width:100%;border-collapse:collapse;font-size:12px;}
+.data-table th{text-align:left;padding:.5rem .75rem;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);border-bottom:0.5px solid var(--border);background:var(--surface);}
+.data-table td{padding:.6rem .75rem;border-bottom:0.5px solid var(--border);color:var(--text2);}
+.data-table tr:hover td{background:var(--surface);}
+.data-table td:first-child{color:var(--text);font-weight:500;}
+
+/* user mgmt */
+.toolbar{display:flex;align-items:center;gap:.6rem;margin-bottom:1rem;}
+.search-input{flex:1;border:0.5px solid var(--border2);border-radius:10px;padding:.5rem .85rem;font-size:12px;color:var(--text);outline:none;background:var(--surface);}
+.btn-primary{background:var(--navy);color:white;border:none;border-radius:10px;padding:.5rem 1rem;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:.35rem;}
+.btn-primary i{font-size:14px;}
+.status-dot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:4px;}
+.s-active{background:var(--green);}
+.s-inactive{background:var(--text3);}
+
+/* toggle */
+.toggle-wrap{display:flex;align-items:center;justify-content:space-between;padding:.5rem 0;border-bottom:0.5px solid var(--border);}
+.toggle-label{font-size:12px;color:var(--text);}
+.toggle{width:36px;height:20px;border-radius:20px;cursor:pointer;position:relative;transition:background .2s;flex-shrink:0;}
+.toggle.on{background:var(--navy);}
+.toggle.off{background:var(--border2);}
+.toggle-thumb{width:16px;height:16px;border-radius:50%;background:white;position:absolute;top:2px;transition:left .2s;}
+.toggle.on .toggle-thumb{left:18px;}
+.toggle.off .toggle-thumb{left:2px;}
+
+/* integration */
+.integration-card{background:var(--surface);border:0.5px solid var(--border);border-radius:12px;padding:1rem;margin-bottom:.65rem;display:flex;align-items:center;gap:.85rem;}
+.int-logo{width:40px;height:40px;border-radius:10px;background:white;border:0.5px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--navy);}
+.int-name{font-size:13px;font-weight:700;color:var(--text);}
+.int-status{font-size:11px;color:var(--text2);}
+.int-btn{margin-left:auto;padding:.4rem .9rem;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;border:0.5px solid;}
+.int-connected{background:var(--greenb);color:var(--greenc);border-color:var(--green);}
+.int-connect{background:var(--navy);color:white;border-color:var(--navy);}
+
+/* login screen */
+.login-wrap{display:flex;align-items:center;justify-content:center;min-height:600px;background:var(--surface);}
+.login-card{background:white;border:0.5px solid var(--border);border-radius:20px;padding:2rem;width:320px;}
+.login-logo{font-size:20px;font-weight:700;color:var(--gold);text-align:center;margin-bottom:.25rem;}
+.login-logo span{color:var(--navy);}
+.login-sub{font-size:12px;color:var(--text2);text-align:center;margin-bottom:1.5rem;}
+.form-label{font-size:11px;font-weight:700;color:var(--text2);margin-bottom:.3rem;text-transform:uppercase;letter-spacing:.05em;}
+.form-input{width:100%;border:0.5px solid var(--border2);border-radius:10px;padding:.6rem .9rem;font-size:13px;color:var(--text);outline:none;margin-bottom:.85rem;background:var(--surface);}
+.form-select{width:100%;border:0.5px solid var(--border2);border-radius:10px;padding:.6rem .9rem;font-size:13px;color:var(--text);outline:none;margin-bottom:.85rem;background:var(--surface);}
+.login-btn{width:100%;background:var(--navy);color:white;border:none;border-radius:12px;padding:.75rem;font-size:14px;font-weight:700;cursor:pointer;}
+</style>
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<div style="margin-bottom:.75rem;">
+  <div style="font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text2);margin-bottom:.5rem;">Switch role to explore</div>
+  <div class="role-tabs">
+    <div class="rtab" onclick="switchRole('login')">Login</div>
+    <div class="rtab active" onclick="switchRole('staff')">Staff</div>
+    <div class="rtab" onclick="switchRole('manager')">Manager</div>
+    <div class="rtab" onclick="switchRole('admin')">Admin</div>
+  </div>
+</div>
+
+<div class="app" style="position:relative;" id="mainApp">
+
+  <!-- PANEL OVERLAY -->
+  <div class="panel-overlay" id="panelOverlay" onclick="closePanel()">
+    <div class="slide-panel" onclick="event.stopPropagation()">
+      <div class="panel-close" onclick="closePanel()"><i class="ti ti-x" aria-hidden="true"></i></div>
+      <div class="panel-title">Extra towels (×2)</div>
+      <div class="panel-sub">Room 412 · Arjun Kumar</div>
+      <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:.5rem;">
+        <span class="badge b-hk">Housekeeping</span>
+        <span class="badge b-progress">In progress</span>
+        <div class="priority-dot p-high" style="margin-top:4px;" title="High priority"></div>
+      </div>
+      <div class="panel-section">Request details</div>
+      <div style="background:var(--surface);border-radius:10px;padding:.75rem;font-size:12px;color:var(--text2);line-height:1.6;margin-bottom:.5rem;">"Can I get 2 extra bath towels sent to my room please? Also a bottle of still water."</div>
+      <div class="panel-section">AI extracted info</div>
+      <div class="detail-row"><span>Item</span><span>Extra towels ×2</span></div>
+      <div class="detail-row"><span>Location</span><span>Room 412</span></div>
+      <div class="detail-row"><span>Source</span><span>AI Chat — Room tablet</span></div>
+      <div class="detail-row"><span>Received</span><span>9:04 PM</span></div>
+      <div class="panel-section">Timeline</div>
+      <div class="timeline-item"><div class="tl-dot" style="background:var(--green);margin-top:4px;"></div><div><div class="tl-text">Request received from guest</div><div class="tl-time">9:04 PM</div></div></div>
+      <div class="timeline-item"><div class="tl-dot" style="background:var(--blue);margin-top:4px;"></div><div><div class="tl-text">Assigned to Priya (Housekeeping)</div><div class="tl-time">9:06 PM</div></div></div>
+      <div class="timeline-item"><div class="tl-dot" style="background:var(--amber);margin-top:4px;"></div><div><div class="tl-text">In progress</div><div class="tl-time">9:08 PM</div></div></div>
+      <div class="action-btns">
+        <div class="abtn abtn-success" onclick="closePanel()">Mark as completed</div>
+        <div class="abtn abtn-primary" onclick="closePanel()">Reassign</div>
+        <div class="abtn abtn-danger" onclick="closePanel()">Escalate to manager</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOP BAR -->
+  <div class="topbar" id="topbar">
+    <div class="topbar-logo">STAY<span>OS</span></div>
+    <div class="topbar-right">
+      <div class="topbar-role role-staff" id="roleLabel">Staff · Housekeeping</div>
+      <div class="topbar-user" id="userLabel">Priya S.</div>
+      <div class="topbar-notif"><i class="ti ti-bell" aria-hidden="true"></i><div class="notif-dot"></div></div>
+      <div class="avatar" id="avatarEl">PS</div>
+    </div>
+  </div>
+
+  <div class="main">
+
+    <!-- SIDEBAR -->
+    <div class="sidebar" id="sidebar">
+      <div id="sidebarContent"></div>
+      <div class="sidebar-bottom">
+        <div class="nav-item" style="color:var(--red);"><i class="ti ti-logout" aria-hidden="true"></i>Sign out</div>
+      </div>
+    </div>
+
+    <!-- CONTENT -->
+    <div class="content" id="contentArea"></div>
+
+  </div>
+</div>
+
+<script>
+const roles={
+  login:{label:'Login',avatar:''},
+  staff:{label:'Staff · Housekeeping',avatar:'PS',user:'Priya S.',roleClass:'role-staff'},
+  manager:{label:'Hotel Manager',avatar:'RM',user:'Rajesh M.',roleClass:'role-mgr'},
+  admin:{label:'Admin',avatar:'SA',user:'Sana A.',roleClass:'role-admin'}
+};
+
+const sidebars={
+  staff:`
+    <div class="sidebar-section">Operations</div>
+    <div class="nav-item active" onclick="showView('staff-queue')"><i class="ti ti-layout-kanban" aria-hidden="true"></i>Request queue</div>
+    <div class="nav-item" onclick="showView('staff-completed')"><i class="ti ti-circle-check" aria-hidden="true"></i>Completed</div>
+    <div class="sidebar-section">Personal</div>
+    <div class="nav-item"><i class="ti ti-user" aria-hidden="true"></i>My tasks</div>
+    <div class="nav-item"><i class="ti ti-settings" aria-hidden="true"></i>Profile</div>
+  `,
+  manager:`
+    <div class="sidebar-section">Overview</div>
+    <div class="nav-item active" onclick="showView('mgr-overview')"><i class="ti ti-layout-grid" aria-hidden="true"></i>All departments</div>
+    <div class="nav-item" onclick="showView('mgr-journey')"><i class="ti ti-route" aria-hidden="true"></i>Guest journey</div>
+    <div class="nav-item" onclick="showView('mgr-alerts')"><i class="ti ti-alert-triangle" aria-hidden="true"></i>Alerts <span style="background:var(--red);color:white;font-size:9px;padding:1px 5px;border-radius:20px;margin-left:4px;">3</span></div>
+    <div class="sidebar-section">Insights</div>
+    <div class="nav-item" onclick="showView('mgr-analytics')"><i class="ti ti-chart-bar" aria-hidden="true"></i>Analytics</div>
+    <div class="nav-item"><i class="ti ti-mood-smile" aria-hidden="true"></i>Sentiment</div>
+    <div class="nav-item"><i class="ti ti-file-report" aria-hidden="true"></i>Reports</div>
+  `,
+  admin:`
+    <div class="sidebar-section">Management</div>
+    <div class="nav-item active" onclick="showView('admin-users')"><i class="ti ti-users" aria-hidden="true"></i>Users</div>
+    <div class="nav-item" onclick="showView('admin-roles')"><i class="ti ti-shield" aria-hidden="true"></i>Roles & permissions</div>
+    <div class="sidebar-section">Configuration</div>
+    <div class="nav-item" onclick="showView('admin-tablets')"><i class="ti ti-device-tablet" aria-hidden="true"></i>Tablets & locations</div>
+    <div class="nav-item" onclick="showView('admin-hotel')"><i class="ti ti-building" aria-hidden="true"></i>Hotel setup</div>
+    <div class="nav-item" onclick="showView('admin-pms')"><i class="ti ti-plug" aria-hidden="true"></i>PMS integration</div>
+  `
+};
+
+const views={
+  'login':`
+    <div class="login-wrap">
+      <div class="login-card">
+        <div class="login-logo">STAY<span style="color:var(--navy);">OS</span></div>
+        <div class="login-sub">Sign in to your dashboard</div>
+        <div class="form-label">Role</div>
+        <select class="form-select">
+          <option>Housekeeping Staff</option>
+          <option>F&B Staff</option>
+          <option>Maintenance Staff</option>
+          <option>Concierge</option>
+          <option>Department Manager</option>
+          <option>Hotel Manager</option>
+          <option>Admin</option>
+        </select>
+        <div class="form-label">Username</div>
+        <input class="form-input" placeholder="your.name@hotel.com" type="email"/>
+        <div class="form-label">Password</div>
+        <input class="form-input" placeholder="••••••••" type="password"/>
+        <button class="login-btn" onclick="switchRole('staff')">Sign in →</button>
+        <div style="text-align:center;font-size:11px;color:var(--text3);margin-top:.75rem;cursor:pointer;">Forgot password?</div>
+      </div>
+    </div>
+  `,
+  'staff-queue':`
+    <div class="page-title">Request queue <span style="font-size:13px;font-weight:400;color:var(--text2);">· Housekeeping</span></div>
+    <div class="kpi-row" style="grid-template-columns:repeat(4,1fr);">
+      <div class="kpi"><div class="kpi-label">New</div><div class="kpi-val amber">4</div></div>
+      <div class="kpi"><div class="kpi-label">In progress</div><div class="kpi-val" style="color:var(--blue);">3</div></div>
+      <div class="kpi"><div class="kpi-label">Completed today</div><div class="kpi-val green">12</div></div>
+      <div class="kpi"><div class="kpi-label">Avg resolve</div><div class="kpi-val">18m</div></div>
+    </div>
+    <div class="kanban">
+      <div class="k-col">
+        <div class="k-col-head">New requests <span class="k-count">4</span></div>
+        <div class="req-card" onclick="openPanel()">
+          <div class="req-card-top"><div><div class="req-title">Extra towels (×2)</div><div class="req-room">Room 412 · Arjun K.</div></div><div class="priority-dot p-high"></div></div>
+          <div class="req-meta"><span class="badge b-hk">Housekeeping</span><span class="req-time">2 min ago</span></div>
+          <div class="assign-btn">Assign to me</div>
+        </div>
+        <div class="req-card" onclick="openPanel()">
+          <div class="req-card-top"><div><div class="req-title">Room not cleaned</div><div class="req-room">Room 308 · Sara M.</div></div><div class="priority-dot p-high"></div></div>
+          <div class="req-meta"><span class="badge b-hk">Housekeeping</span><span class="req-time">8 min ago</span></div>
+          <div class="assign-btn">Assign to me</div>
+        </div>
+        <div class="req-card" onclick="openPanel()">
+          <div class="req-card-top"><div><div class="req-title">Extra pillow</div><div class="req-room">Room 215 · Raj P.</div></div><div class="priority-dot p-low"></div></div>
+          <div class="req-meta"><span class="badge b-hk">Housekeeping</span><span class="req-time">12 min ago</span></div>
+          <div class="assign-btn">Assign to me</div>
+        </div>
+      </div>
+      <div class="k-col">
+        <div class="k-col-head">In progress <span class="k-count">3</span></div>
+        <div class="req-card" onclick="openPanel()">
+          <div class="req-card-top"><div><div class="req-title">Fresh bed linen</div><div class="req-room">Room 501 · Chen W.</div></div><div class="priority-dot p-med"></div></div>
+          <div class="req-meta"><span class="badge b-hk">Housekeeping</span><span class="badge b-progress">In progress</span></div>
+          <div style="font-size:10px;color:var(--text3);margin-top:.35rem;">Assigned: Meena · 5 min ago</div>
+        </div>
+        <div class="req-card" onclick="openPanel()">
+          <div class="req-card-top"><div><div class="req-title">Bathroom restock</div><div class="req-room">Room 118 · Aisha R.</div></div><div class="priority-dot p-med"></div></div>
+          <div class="req-meta"><span class="badge b-hk">Housekeeping</span><span class="badge b-progress">In progress</span></div>
+          <div style="font-size:10px;color:var(--text3);margin-top:.35rem;">Assigned: You · 10 min ago</div>
+        </div>
+      </div>
+      <div class="k-col">
+        <div class="k-col-head">Completed today <span class="k-count">12</span></div>
+        <div class="req-card">
+          <div class="req-card-top"><div><div class="req-title">Extra blanket</div><div class="req-room">Room 320 · Sam T.</div></div><span class="badge b-done">Done</span></div>
+          <div class="req-meta"><span class="req-time">Resolved in 14 min</span></div>
+        </div>
+        <div class="req-card">
+          <div class="req-card-top"><div><div class="req-title">Room turndown</div><div class="req-room">Room 412 · Arjun K.</div></div><span class="badge b-done">Done</span></div>
+          <div class="req-meta"><span class="req-time">Resolved in 22 min</span></div>
+        </div>
+        <div class="req-card">
+          <div class="req-card-top"><div><div class="req-title">Mini bar restock</div><div class="req-room">Room 605 · Liu M.</div></div><span class="badge b-done">Done</span></div>
+          <div class="req-meta"><span class="req-time">Resolved in 9 min</span></div>
+        </div>
+      </div>
+    </div>
+  `,
+  'staff-completed':`
+    <div class="page-title">Completed requests</div>
+    <div class="kpi-row" style="grid-template-columns:repeat(4,1fr);">
+      <div class="kpi"><div class="kpi-label">Total today</div><div class="kpi-val green">12</div></div>
+      <div class="kpi"><div class="kpi-label">Avg resolve time</div><div class="kpi-val">18 min</div></div>
+      <div class="kpi"><div class="kpi-label">Escalated</div><div class="kpi-val red">1</div></div>
+      <div class="kpi"><div class="kpi-label">This week</div><div class="kpi-val">67</div></div>
+    </div>
+    <div class="card">
+      <table class="data-table">
+        <thead><tr><th>Room</th><th>Guest</th><th>Request</th><th>Resolved in</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>412</td><td>Arjun K.</td><td>Extra blanket</td><td>14 min</td><td><span class="badge b-done">Done</span></td></tr>
+          <tr><td>308</td><td>Sara M.</td><td>Room turndown</td><td>22 min</td><td><span class="badge b-done">Done</span></td></tr>
+          <tr><td>215</td><td>Raj P.</td><td>Mini bar restock</td><td>9 min</td><td><span class="badge b-done">Done</span></td></tr>
+          <tr><td>501</td><td>Chen W.</td><td>Extra pillow</td><td>31 min</td><td><span class="badge b-escalated">Escalated</span></td></tr>
+          <tr><td>118</td><td>Aisha R.</td><td>Bathroom restock</td><td>11 min</td><td><span class="badge b-done">Done</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  `,
+  'mgr-overview':`
+    <div class="page-title">All departments</div>
+    <div class="kpi-row" style="grid-template-columns:repeat(4,1fr);">
+      <div class="kpi"><div class="kpi-label">Active requests</div><div class="kpi-val amber">18</div></div>
+      <div class="kpi"><div class="kpi-label">Avg response time</div><div class="kpi-val">14 min</div></div>
+      <div class="kpi"><div class="kpi-label">Guest satisfaction</div><div class="kpi-val green">4.6 / 5</div></div>
+      <div class="kpi"><div class="kpi-label">Escalations</div><div class="kpi-val red">3</div></div>
+    </div>
+    <div class="dept-grid">
+      <div class="dept-card status-ok" onclick="switchRole('staff');showView('staff-queue')">
+        <div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.4rem;"><span class="badge b-hk">Housekeeping</span></div>
+        <div class="dept-active">7 <span style="font-size:13px;font-weight:400;color:var(--text2);">active</span></div>
+        <div class="dept-pending">2 pending · 5 in progress</div>
+        <div class="dept-spark"><div class="spark-bar" style="height:8px;"></div><div class="spark-bar" style="height:14px;"></div><div class="spark-bar hi" style="height:20px;"></div><div class="spark-bar" style="height:16px;"></div><div class="spark-bar" style="height:10px;"></div><div class="spark-bar" style="height:18px;"></div><div class="spark-bar hi" style="height:22px;"></div></div>
+      </div>
+      <div class="dept-card status-warn" onclick="switchRole('staff');showView('staff-queue')">
+        <div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.4rem;"><span class="badge b-fb">F&B</span></div>
+        <div class="dept-active">5 <span style="font-size:13px;font-weight:400;color:var(--text2);">active</span></div>
+        <div class="dept-pending">3 pending · 2 in progress</div>
+        <div class="dept-spark"><div class="spark-bar" style="height:10px;"></div><div class="spark-bar hi" style="height:18px;"></div><div class="spark-bar" style="height:14px;"></div><div class="spark-bar" style="height:20px;"></div><div class="spark-bar hi" style="height:24px;"></div><div class="spark-bar" style="height:16px;"></div><div class="spark-bar" style="height:12px;"></div></div>
+      </div>
+      <div class="dept-card status-bad">
+        <div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.4rem;"><span class="badge b-mt">Maintenance</span></div>
+        <div class="dept-active">4 <span style="font-size:13px;font-weight:400;color:var(--text2);">active</span></div>
+        <div class="dept-pending" style="color:var(--red);">2 overdue · 1 escalated</div>
+        <div class="dept-spark"><div class="spark-bar hi" style="height:22px;"></div><div class="spark-bar" style="height:16px;"></div><div class="spark-bar hi" style="height:28px;"></div><div class="spark-bar" style="height:20px;"></div><div class="spark-bar" style="height:14px;"></div><div class="spark-bar hi" style="height:24px;"></div><div class="spark-bar" style="height:18px;"></div></div>
+      </div>
+      <div class="dept-card status-ok">
+        <div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.4rem;"><span class="badge b-co">Concierge</span></div>
+        <div class="dept-active">1 <span style="font-size:13px;font-weight:400;color:var(--text2);">active</span></div>
+        <div class="dept-pending">1 pending</div>
+        <div class="dept-spark"><div class="spark-bar" style="height:6px;"></div><div class="spark-bar" style="height:8px;"></div><div class="spark-bar" style="height:10px;"></div><div class="spark-bar hi" style="height:14px;"></div><div class="spark-bar" style="height:8px;"></div><div class="spark-bar" style="height:6px;"></div><div class="spark-bar hi" style="height:12px;"></div></div>
+      </div>
+      <div class="dept-card status-ok">
+        <div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.4rem;"><span class="badge b-sp">Spa</span></div>
+        <div class="dept-active">1 <span style="font-size:13px;font-weight:400;color:var(--text2);">active</span></div>
+        <div class="dept-pending">1 booking</div>
+        <div class="dept-spark"><div class="spark-bar" style="height:8px;"></div><div class="spark-bar hi" style="height:16px;"></div><div class="spark-bar" style="height:12px;"></div><div class="spark-bar" style="height:8px;"></div><div class="spark-bar hi" style="height:18px;"></div><div class="spark-bar" style="height:10px;"></div><div class="spark-bar" style="height:8px;"></div></div>
+      </div>
+      <div class="dept-card status-ok">
+        <div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.4rem;"><span class="badge b-fd">Front Desk</span></div>
+        <div class="dept-active">0 <span style="font-size:13px;font-weight:400;color:var(--text2);">active</span></div>
+        <div class="dept-pending">All clear</div>
+        <div class="dept-spark"><div class="spark-bar" style="height:8px;"></div><div class="spark-bar" style="height:6px;"></div><div class="spark-bar" style="height:10px;"></div><div class="spark-bar hi" style="height:14px;"></div><div class="spark-bar" style="height:6px;"></div><div class="spark-bar" style="height:8px;"></div><div class="spark-bar" style="height:4px;"></div></div>
+      </div>
+    </div>
+  `,
+  'mgr-journey':`
+    <div class="page-title">Guest journey</div>
+    <div class="gt-guest-card">
+      <div class="gt-avatar">AK</div>
+      <div>
+        <div class="gt-name">Arjun Kumar</div>
+        <div class="gt-meta">Room 412 · Grand Deluxe · Jun 6–9 · 6 interactions</div>
+      </div>
+      <div style="margin-left:auto;display:flex;gap:.4rem;">
+        <span class="badge b-done">Satisfied</span>
+        <span style="font-size:12px;color:var(--text2);padding:.2rem .5rem;">4.5 ★</span>
+      </div>
+    </div>
+    <div class="tl-full">
+      <div class="tl-full-item">
+        <div class="tl-icon" style="background:var(--greenb);"><i class="ti ti-login" aria-hidden="true" style="color:var(--tealc);"></i></div>
+        <div class="tl-body"><div class="tl-event">Checked in</div><div class="tl-desc">Room 412 assigned · PIN issued</div><div class="tl-ts">Jun 6 · 3:12 PM</div></div>
+      </div>
+      <div class="tl-full-item">
+        <div class="tl-icon" style="background:var(--blueb);"><i class="ti ti-message" aria-hidden="true" style="color:var(--bluec);"></i></div>
+        <div class="tl-body"><div class="tl-event">AI chat — extra pillow</div><div class="tl-desc">Housekeeping · Resolved in 18 min</div><div class="tl-ts">Jun 6 · 5:30 PM</div></div>
+      </div>
+      <div class="tl-full-item">
+        <div class="tl-icon" style="background:var(--amberb);"><i class="ti ti-tools" aria-hidden="true" style="color:var(--amberc);"></i></div>
+        <div class="tl-body"><div class="tl-event">Maintenance — AC complaint</div><div class="tl-desc">Reported via room tablet · Pending 40 min</div><div class="tl-ts">Jun 6 · 7:15 PM</div></div>
+      </div>
+      <div class="tl-full-item">
+        <div class="tl-icon" style="background:var(--redb);"><i class="ti ti-alert-triangle" aria-hidden="true" style="color:var(--red);"></i></div>
+        <div class="tl-body"><div class="tl-event">Manager escalation</div><div class="tl-desc">AC issue unresolved · Manager called guest</div><div class="tl-ts">Jun 6 · 7:55 PM</div></div>
+      </div>
+      <div class="tl-full-item">
+        <div class="tl-icon" style="background:var(--tealb);"><i class="ti ti-towel" aria-hidden="true" style="color:var(--tealc);"></i></div>
+        <div class="tl-body"><div class="tl-event">Voice note — extra towels</div><div class="tl-desc">Housekeeping · In progress</div><div class="tl-ts">Jun 6 · 9:04 PM</div></div>
+      </div>
+      <div class="tl-full-item">
+        <div class="tl-icon" style="background:var(--pinkb);"><i class="ti ti-tag" aria-hidden="true" style="color:var(--pinkc);"></i></div>
+        <div class="tl-body"><div class="tl-event">Offer claimed — sunset dinner</div><div class="tl-desc">20% discount applied</div><div class="tl-ts">Jun 6 · 9:20 PM</div></div>
+      </div>
+    </div>
+  `,
+  'mgr-alerts':`
+    <div class="page-title">Alerts & escalations</div>
+    <div style="display:flex;gap:.5rem;margin-bottom:1rem;">
+      <span class="badge b-escalated">3 critical</span>
+      <span class="badge b-pending">2 warnings</span>
+    </div>
+    <div class="alert-card">
+      <div class="alert-icon"><i class="ti ti-alert-triangle" aria-hidden="true"></i></div>
+      <div style="flex:1;">
+        <div class="alert-title">AC unresolved — Room 412</div>
+        <div class="alert-desc">Guest reported AC issue 55 min ago. Maintenance assigned but no update. Guest has 2 prior complaints this stay.</div>
+        <div class="alert-action" onclick="switchRole('manager');showView('mgr-journey')">View guest journey →</div>
+      </div>
+      <div style="font-size:11px;color:var(--red);font-weight:700;flex-shrink:0;">55 min</div>
+    </div>
+    <div class="alert-card">
+      <div class="alert-icon"><i class="ti ti-alert-triangle" aria-hidden="true"></i></div>
+      <div style="flex:1;">
+        <div class="alert-title">F&B — 3 requests pending 30+ min</div>
+        <div class="alert-desc">Rooms 308, 215, 501 have pending room service requests with no assignment.</div>
+        <div class="alert-action">Assign now →</div>
+      </div>
+      <div style="font-size:11px;color:var(--red);font-weight:700;flex-shrink:0;">32 min</div>
+    </div>
+    <div class="alert-card" style="border-left-color:var(--amber);">
+      <div class="alert-icon warn"><i class="ti ti-mood-sad" aria-hidden="true"></i></div>
+      <div style="flex:1;">
+        <div class="alert-title">Negative sentiment — Room 308</div>
+        <div class="alert-desc">Guest Sara M. used frustrated language in 2 chat messages. Possible bad review risk.</div>
+        <div class="alert-action">Follow up →</div>
+      </div>
+      <div style="font-size:11px;color:var(--amber);font-weight:700;flex-shrink:0;">Warning</div>
+    </div>
+    <div class="alert-card" style="border-left-color:var(--amber);">
+      <div class="alert-icon warn"><i class="ti ti-clock" aria-hidden="true"></i></div>
+      <div style="flex:1;">
+        <div class="alert-title">Maintenance team understaffed</div>
+        <div class="alert-desc">4 active requests, only 1 staff on duty. Consider reassigning from housekeeping.</div>
+        <div class="alert-action">Reassign staff →</div>
+      </div>
+      <div style="font-size:11px;color:var(--amber);font-weight:700;flex-shrink:0;">Warning</div>
+    </div>
+  `,
+  'mgr-analytics':`
+    <div class="page-title">Analytics</div>
+    <div class="kpi-row" style="grid-template-columns:repeat(4,1fr);margin-bottom:1.25rem;">
+      <div class="kpi"><div class="kpi-label">Requests today</div><div class="kpi-val">47</div><div class="kpi-sub">↑ 12% vs yesterday</div></div>
+      <div class="kpi"><div class="kpi-label">Resolved</div><div class="kpi-val green">39</div><div class="kpi-sub">83% resolution rate</div></div>
+      <div class="kpi"><div class="kpi-label">Avg response</div><div class="kpi-val">14 min</div><div class="kpi-sub">↓ 3 min improvement</div></div>
+      <div class="kpi"><div class="kpi-label">Satisfaction</div><div class="kpi-val green">4.6★</div><div class="kpi-sub">Based on 22 ratings</div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;">
+      <div class="card">
+        <div class="card-title"><i class="ti ti-chart-bar" aria-hidden="true"></i>Requests by department</div>
+        <div style="display:flex;flex-direction:column;gap:.5rem;">
+          ${[['Housekeeping','19','78%','var(--tealc)'],['F&B','12','49%','var(--bluec)'],['Maintenance','8','33%','var(--amberc)'],['Concierge','5','20%','var(--purplec)'],['Spa','3','12%','var(--pinkc)']].map(([name,count,pct,color])=>`
+          <div>
+            <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text2);margin-bottom:3px;"><span>${name}</span><span style="font-weight:600;color:var(--text);">${count}</span></div>
+            <div style="height:6px;background:var(--border);border-radius:4px;overflow:hidden;"><div style="height:100%;width:${pct};background:${color};border-radius:4px;"></div></div>
+          </div>`).join('')}
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title"><i class="ti ti-clock" aria-hidden="true"></i>Resolution time trend (7 days)</div>
+        <div style="display:flex;align-items:flex-end;gap:6px;height:100px;padding-top:.5rem;">
+          ${[22,18,25,16,14,19,14].map((h,i)=>`<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;"><div style="height:${h*3}px;background:${i===6?'var(--navy)':'var(--border2)'};border-radius:4px 4px 0 0;width:100%;"></div><div style="font-size:9px;color:var(--text3);">${['M','T','W','T','F','S','S'][i]}</div></div>`).join('')}
+        </div>
+        <div style="font-size:10px;color:var(--text3);margin-top:.5rem;">Average in minutes</div>
+      </div>
+    </div>
+  `,
+  'admin-users':`
+    <div class="page-title">User management</div>
+    <div class="toolbar">
+      <input class="search-input" placeholder="Search users..."/>
+      <button class="btn-primary"><i class="ti ti-plus" aria-hidden="true"></i>Add user</button>
+    </div>
+    <div class="card" style="padding:0;overflow:hidden;">
+      <table class="data-table">
+        <thead><tr><th>Name</th><th>Role</th><th>Department</th><th>Status</th><th>Last login</th><th>Actions</th></tr></thead>
+        <tbody>
+          <tr><td>Priya Sharma</td><td><span class="badge b-hk">Staff</span></td><td>Housekeeping</td><td><span class="status-dot s-active"></span>Active</td><td>Today 9:02 PM</td><td style="display:flex;gap:.4rem;"><i class="ti ti-edit" style="cursor:pointer;color:var(--text3);" aria-hidden="true"></i><i class="ti ti-trash" style="cursor:pointer;color:var(--red);" aria-hidden="true"></i></td></tr>
+          <tr><td>Rajesh Menon</td><td><span class="badge b-co">Manager</span></td><td>All</td><td><span class="status-dot s-active"></span>Active</td><td>Today 8:45 PM</td><td style="display:flex;gap:.4rem;"><i class="ti ti-edit" style="cursor:pointer;color:var(--text3);" aria-hidden="true"></i><i class="ti ti-trash" style="cursor:pointer;color:var(--red);" aria-hidden="true"></i></td></tr>
+          <tr><td>Sana Ayesha</td><td><span class="badge b-sp">Admin</span></td><td>All</td><td><span class="status-dot s-active"></span>Active</td><td>Today 6:00 PM</td><td style="display:flex;gap:.4rem;"><i class="ti ti-edit" style="cursor:pointer;color:var(--text3);" aria-hidden="true"></i><i class="ti ti-trash" style="cursor:pointer;color:var(--red);" aria-hidden="true"></i></td></tr>
+          <tr><td>Arif Khan</td><td><span class="badge b-mt">Staff</span></td><td>Maintenance</td><td><span class="status-dot s-inactive"></span>Inactive</td><td>Jun 4</td><td style="display:flex;gap:.4rem;"><i class="ti ti-edit" style="cursor:pointer;color:var(--text3);" aria-hidden="true"></i><i class="ti ti-trash" style="cursor:pointer;color:var(--red);" aria-hidden="true"></i></td></tr>
+          <tr><td>Meena Iyer</td><td><span class="badge b-hk">Staff</span></td><td>Housekeeping</td><td><span class="status-dot s-active"></span>Active</td><td>Today 7:30 PM</td><td style="display:flex;gap:.4rem;"><i class="ti ti-edit" style="cursor:pointer;color:var(--text3);" aria-hidden="true"></i><i class="ti ti-trash" style="cursor:pointer;color:var(--red);" aria-hidden="true"></i></td></tr>
+        </tbody>
+      </table>
+    </div>
+  `,
+  'admin-roles':`
+    <div class="page-title">Roles & permissions</div>
+    <div style="display:grid;grid-template-columns:180px 1fr;gap:1rem;">
+      <div class="card" style="padding:.5rem 0;">
+        ${[['Staff','b-hk'],['Dept Manager','b-co'],['Hotel Manager','b-mt'],['Admin','b-sp']].map((r,i)=>`<div class="nav-item ${i===2?'active':''}" onclick="this.parentElement.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));this.classList.add('active')"><i class="ti ti-shield" aria-hidden="true"></i>${r[0]}</div>`).join('')}
+      </div>
+      <div class="card">
+        <div class="card-title"><i class="ti ti-shield" aria-hidden="true"></i>Hotel Manager permissions</div>
+        ${[['View all department queues',true],['Assign requests to staff',true],['View guest journey timeline',true],['Access analytics & reports',true],['Receive escalation alerts',true],['Manage hotel settings',false],['Add or remove users',false],['Configure PMS integration',false],['Access admin panel',false]].map(([label,on])=>`
+        <div class="toggle-wrap">
+          <span class="toggle-label">${label}</span>
+          <div class="toggle ${on?'on':'off'}" onclick="this.classList.toggle('on');this.classList.toggle('off')"><div class="toggle-thumb"></div></div>
+        </div>`).join('')}
+        <button class="btn-primary" style="margin-top:1rem;">Save changes</button>
+      </div>
+    </div>
+  `,
+  'admin-tablets':`
+    <div class="page-title">Tablets & locations</div>
+    <div class="toolbar">
+      <input class="search-input" placeholder="Search locations..."/>
+      <button class="btn-primary"><i class="ti ti-plus" aria-hidden="true"></i>Register tablet</button>
+    </div>
+    <div class="card" style="padding:0;overflow:hidden;">
+      <table class="data-table">
+        <thead><tr><th>Tablet ID</th><th>Location</th><th>Type</th><th>Status</th><th>Last ping</th><th>Actions</th></tr></thead>
+        <tbody>
+          <tr><td>TAB-001</td><td>Room 412</td><td><span class="badge b-hk">In-room</span></td><td><span class="status-dot s-active"></span>Online</td><td>Just now</td><td><i class="ti ti-edit" style="cursor:pointer;color:var(--text3);" aria-hidden="true"></i></td></tr>
+          <tr><td>TAB-002</td><td>Pool Area</td><td><span class="badge b-fb">Common</span></td><td><span class="status-dot s-active"></span>Online</td><td>1 min ago</td><td><i class="ti ti-edit" style="cursor:pointer;color:var(--text3);" aria-hidden="true"></i></td></tr>
+          <tr><td>TAB-003</td><td>Lobby</td><td><span class="badge b-co">Common</span></td><td><span class="status-dot s-active"></span>Online</td><td>3 min ago</td><td><i class="ti ti-edit" style="cursor:pointer;color:var(--text3);" aria-hidden="true"></i></td></tr>
+          <tr><td>TAB-004</td><td>Spa Reception</td><td><span class="badge b-sp">Common</span></td><td><span class="status-dot s-inactive"></span>Offline</td><td>2 hr ago</td><td><i class="ti ti-edit" style="cursor:pointer;color:var(--text3);" aria-hidden="true"></i></td></tr>
+          <tr><td>TAB-005</td><td>Gym</td><td><span class="badge b-mt">Common</span></td><td><span class="status-dot s-active"></span>Online</td><td>5 min ago</td><td><i class="ti ti-edit" style="cursor:pointer;color:var(--text3);" aria-hidden="true"></i></td></tr>
+        </tbody>
+      </table>
+    </div>
+  `,
+  'admin-hotel':`
+    <div class="page-title">Hotel setup</div>
+    <div class="card">
+      <div class="card-title"><i class="ti ti-building" aria-hidden="true"></i>Property details</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;">
+        <div><div class="form-label" style="font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.3rem;">Hotel name</div><input class="form-input" value="Grand Horizon Hotel" style="width:100%;border:0.5px solid var(--border2);border-radius:8px;padding:.5rem .75rem;font-size:13px;outline:none;background:var(--surface);color:var(--text);"/></div>
+        <div><div class="form-label" style="font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.3rem;">Property type</div><select class="form-select" style="width:100%;border:0.5px solid var(--border2);border-radius:8px;padding:.5rem .75rem;font-size:13px;outline:none;background:var(--surface);color:var(--text);"><option>Luxury Hotel</option><option>Boutique</option><option>Resort</option><option>Business Hotel</option></select></div>
+        <div><div class="form-label" style="font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.3rem;">Total rooms</div><input class="form-input" value="120" style="width:100%;border:0.5px solid var(--border2);border-radius:8px;padding:.5rem .75rem;font-size:13px;outline:none;background:var(--surface);color:var(--text);"/></div>
+        <div><div class="form-label" style="font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.3rem;">City</div><input class="form-input" value="Chennai, Tamil Nadu" style="width:100%;border:0.5px solid var(--border2);border-radius:8px;padding:.5rem .75rem;font-size:13px;outline:none;background:var(--surface);color:var(--text);"/></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title"><i class="ti ti-layout-grid" aria-hidden="true"></i>Active departments</div>
+      <div style="display:flex;flex-wrap:wrap;gap:.5rem;">
+        ${['Housekeeping','F&B','Maintenance','Concierge','Spa','Front Desk'].map(d=>`<span class="badge b-done" style="padding:.3rem .75rem;font-size:11px;cursor:pointer;">${d} ✓</span>`).join('')}
+        <span class="badge b-fd" style="padding:.3rem .75rem;font-size:11px;cursor:pointer;">+ Add dept</span>
+      </div>
+    </div>
+    <button class="btn-primary">Save changes</button>
+  `,
+  'admin-pms':`
+    <div class="page-title">PMS integration</div>
+    <div class="integration-card">
+      <div class="int-logo">CB</div>
+      <div><div class="int-name">Cloudbeds</div><div class="int-status">Last sync: 2 min ago · 120 rooms · 34 active guests</div></div>
+      <div class="int-btn int-connected">Connected ✓</div>
+    </div>
+    <div class="integration-card">
+      <div class="int-logo">MW</div>
+      <div><div class="int-name">Mews</div><div class="int-status">Not connected</div></div>
+      <div class="int-btn int-connect">Connect</div>
+    </div>
+    <div class="integration-card">
+      <div class="int-logo">OP</div>
+      <div><div class="int-name">Oracle OPERA</div><div class="int-status">Not connected</div></div>
+      <div class="int-btn int-connect">Connect</div>
+    </div>
+    <div class="integration-card">
+      <div class="int-logo">AP</div>
+      <div><div class="int-name">Apaleo</div><div class="int-status">Not connected</div></div>
+      <div class="int-btn int-connect">Connect</div>
+    </div>
+    <div class="card" style="margin-top:.75rem;">
+      <div class="card-title"><i class="ti ti-history" aria-hidden="true"></i>Sync log</div>
+      <table class="data-table">
+        <thead><tr><th>Event</th><th>Status</th><th>Time</th></tr></thead>
+        <tbody>
+          <tr><td>Guest data sync</td><td><span class="badge b-done">Success</span></td><td>9:08 PM</td></tr>
+          <tr><td>Room status update</td><td><span class="badge b-done">Success</span></td><td>9:06 PM</td></tr>
+          <tr><td>Booking pull</td><td><span class="badge b-done">Success</span></td><td>9:04 PM</td></tr>
+          <tr><td>Guest data sync</td><td><span class="badge b-escalated">Failed</span></td><td>8:58 PM</td></tr>
+        </tbody>
+      </table>
+    </div>
+  `
+};
+
+function showView(id){
+  document.getElementById('contentArea').innerHTML = views[id]||'';
+  document.querySelectorAll('.nav-item').forEach(n=>{
+    n.classList.remove('active');
+    if(n.getAttribute('onclick')&&n.getAttribute('onclick').includes(id)) n.classList.add('active');
+  });
+}
+
+function switchRole(role){
+  document.querySelectorAll('.rtab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.rtab').forEach(t=>{
+    if(t.textContent.toLowerCase().includes(role)||
+      (role==='login'&&t.textContent==='Login')||
+      (role==='staff'&&t.textContent==='Staff')||
+      (role==='manager'&&t.textContent==='Manager')||
+      (role==='admin'&&t.textContent==='Admin')) t.classList.add('active');
+  });
+
+  if(role==='login'){
+    document.getElementById('sidebar').style.display='none';
+    document.getElementById('topbar').style.display='none';
+    document.getElementById('contentArea').style.padding='0';
+    document.getElementById('contentArea').innerHTML=views['login'];
+    return;
+  }
+
+  document.getElementById('sidebar').style.display='flex';
+  document.getElementById('topbar').style.display='flex';
+  document.getElementById('contentArea').style.padding='1.5rem';
+
+  const r=roles[role];
+  document.getElementById('roleLabel').textContent=r.label;
+  document.getElementById('roleLabel').className='topbar-role '+r.roleClass;
+  document.getElementById('userLabel').textContent=r.user;
+  document.getElementById('avatarEl').textContent=r.avatar;
+  document.getElementById('sidebarContent').innerHTML=sidebars[role]||'';
+
+  if(role==='staff') showView('staff-queue');
+  if(role==='manager') showView('mgr-overview');
+  if(role==='admin') showView('admin-users');
+}
+
+function openPanel(){
+  document.getElementById('panelOverlay').classList.add('show');
+}
+function closePanel(){
+  document.getElementById('panelOverlay').classList.remove('show');
+}
+
+switchRole('staff');
+</script>
