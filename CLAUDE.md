@@ -8,7 +8,7 @@ and gives hotel staff, managers, and admins real-time operational dashboards.
 ## Tech Stack — Non-Negotiable
 - **Frontend**: Next.js 14 (App Router), Tailwind CSS, shadcn/ui, Framer Motion, Zustand
 - **Backend**: FastAPI (Python 3.11+), Pydantic v2, SQLAlchemy async
-- **Auth**: fast-authkit (PyPI: fast-authkit==0.1.3) for staff/manager/admin. Custom PIN flow for guests.
+- **Auth**: fast-authkit (PyPI: fast-authkit==0.1.5) for staff/manager/admin. Custom PIN flow for guests.
 - **Database**: Supabase (PostgreSQL), Row Level Security enabled on all tables
 - **Realtime**: Supabase Realtime on: requests, request_events, notifications, tablets
 - **AI Chat**: Google Gemini Pro API (gemini-1.5-pro) — provider-agnostic abstraction layer
@@ -204,3 +204,19 @@ NEXT_PUBLIC_API_BASE_URL=
 - Do NOT use `any` in TypeScript
 - Do NOT hardcode hotel names, room numbers, or any test data in production code
 
+## JWT Claims Contract (Critical)
+
+All JWTs (staff via fast-authkit AND guest PIN flow) must be:
+- Signed with SUPABASE_JWT_SECRET (not AUTHKIT_SECRET_KEY — same value)
+- Contain these claims:
+  sub           → user id (staff) or guest_session.id (guest)
+  role          → "authenticated" (always — required by Supabase)
+  app_role      → staff | dept_manager | hotel_manager | admin | guest
+  hotel_id      → uuid string
+  department_id → uuid string (staff/dept_manager only, else null)
+  session_id    → uuid string (guests only)
+
+RLS policies use auth.jwt() ->> 'app_role' and auth.jwt() ->> 'hotel_id'
+NOT the built-in auth.role() or auth.uid() for app-level checks.
+
+FastAPI uses service role key — bypasses RLS — hotel isolation done in middleware.
