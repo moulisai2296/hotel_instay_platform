@@ -1,6 +1,13 @@
 import os
 from http import HTTPStatus
 
+from dotenv import load_dotenv
+
+# Load apps/api/.env into the process env so local runs pick up GEMINI_API_KEY /
+# DEEPGRAM_API_KEY etc. (AuthKitConfig only loads its own AUTHKIT_-prefixed vars).
+# In deployment the platform sets real env vars and this is a no-op.
+load_dotenv()
+
 from fastapi import Depends, FastAPI, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
@@ -13,7 +20,9 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from auth import get_auth_kit
 from auth.schemas import CustomUserRead
 from middleware import limiter, rate_limit_handler
+from routers import ai as ai_router
 from routers import guest as guest_router
+from routers import requests as requests_router
 
 
 def _cors_origins() -> list[str]:
@@ -91,6 +100,9 @@ def create_app() -> FastAPI:
 
     # Guest PIN auth (custom flow, not fast-authkit).
     app.include_router(guest_router.router)
+    # Guest request creation + AI classification, and voice transcription.
+    app.include_router(requests_router.router)
+    app.include_router(ai_router.router)
 
     @app.get("/health", tags=["meta"])
     async def health():

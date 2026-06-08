@@ -1,6 +1,7 @@
 """Business-logic layer for the InStayOS API."""
 
 from .ai_service import AIService, AIServiceError, get_ai_service
+from .request_service import RequestRepository, RequestService
 from .guest_auth_service import (
     GuestAuthService,
     ResolvedSession,
@@ -26,4 +27,6 @@ __all__ = [
     "VoiceService",
     "VoiceServiceError",
     "get_voice_service",
+    "RequestService",
+    "RequestRepository",
 ]

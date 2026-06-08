@@ -1,5 +1,5 @@
 """API route modules for the InStayOS backend."""
 
-from . import guest
+from . import ai, guest, requests
 
-__all__ = ["guest"]
+__all__ = ["guest", "requests", "ai"]
