@@ -19,6 +19,7 @@ Format for each entry:
 3. [Isolating a third-party framework behind your own seams (fast-authkit)](#3-isolating-a-third-party-framework-behind-your-own-seams-fast-authkit)
 4. [Bootstrapping the first admin in a multi-tenant SaaS](#4-bootstrapping-the-first-admin-in-a-multi-tenant-saas)
 5. [Re-enforcing isolation when the backend bypasses RLS](#5-re-enforcing-isolation-when-the-backend-bypasses-rls)
+6. [Anti-enumeration: make auth failures indistinguishable](#6-anti-enumeration-make-auth-failures-indistinguishable)
 
 ---
 
@@ -313,3 +314,66 @@ the check guards nothing.
 > a trusted, privileged path (service account, admin connection, internal service)
 > skips the guard, that path needs its **own** check at a layer it can't bypass —
 > and that check must key off a signed/authenticated identity, never client input.
+
+---
+
+## 6. Anti-enumeration: make auth failures indistinguishable
+
+**Context:** Step 4 guest PIN auth (`apps/api/routers/guest.py`,
+`apps/api/services/guest_auth_service.py`). The guest proves a 6-digit PIN against
+an active stay scoped by hotel slug + room number. A naive implementation leaks
+*which* rooms are occupied — letting an attacker enumerate valid rooms first and
+then brute-force only those PINs. The endpoint instead returns one uniform
+`401 INVALID_CREDENTIALS` for every failure and burns a dummy bcrypt check when no
+session matches, so all failures look and *time* the same.
+
+**Principle:** *On any authentication or lookup-by-secret path, an attacker probes
+to learn which inputs are valid before attacking them. Defend by making every
+failure indistinguishable — same status, same body, AND same timing — so a probe
+returns zero information.*
+
+### Explanation / analogy
+Attacks come in two phases: **enumeration** (which targets exist?) then
+**exploitation** (break into a known target). Enumeration is the cheap, quiet phase
+that makes exploitation feasible — confirming a room is occupied turns a hopeless
+6-digit search across the whole hotel into a focused one against a single door.
+
+**The apartment keypad.** A building entrance keypad: type a non-existent unit and
+it flashes red instantly; type a *real* unit with the wrong code and it pauses a
+beat (checking) before flashing red. A stranger learns nothing about codes — but by
+noticing *which numbers pause*, they map every occupied unit in minutes. The fix
+isn't a friendlier error; it's making the keypad behave **identically** — same
+pause, same red light — whether the unit exists or not. The probe now yields
+nothing.
+
+Two leaks must be closed, not one:
+- **Content leak:** distinct messages/status codes ("no such room" vs "wrong PIN").
+  Closed by a single uniform error for every failure branch.
+- **Timing leak:** a "no match" returns in ~0 ms while a real bcrypt verify takes a
+  deliberate ~100 ms. That gap alone enumerates valid rooms. Closed by running a
+  throwaway bcrypt check (`burn_dummy_check`) on the no-match path so every request
+  pays the same cost.
+
+### Advantages
+1. **Kills the cheap recon phase** — without a way to confirm valid rooms/accounts,
+   the attacker must brute-force the entire space blindly.
+2. **Cheap to implement** — one shared error object + one dummy hash; no new infra.
+3. **Composes with rate limiting** — uniform responses stop *enumeration*; the
+   Step 3 `PIN_VERIFY_LIMIT` stops *guessing*. Each is necessary, neither
+   sufficient (see [[re-enforcing-isolation-when-the-backend-bypasses-rls]] for the
+   broader "defense in depth" theme).
+
+### Tradeoffs
+- **Worse UX for honest users** — a guest who fat-fingers their room number gets the
+  same vague "invalid room or PIN" as a wrong PIN. Security/usability tension that's
+  correct to resolve toward security on an unauthenticated endpoint.
+- **Debuggability** — the precise reason can't be in the response; it must go to
+  server-side logs only (and never the PIN itself).
+- **Timing equalization is approximate** — bcrypt cost varies slightly; constant
+  time is best-effort, not a guarantee. Good enough when paired with throttling.
+
+### Rule of thumb
+> If revealing "this identifier exists" helps an attacker, every failure on that
+> path must be indistinguishable in **content and timing**. Decide what to reveal
+> *before* you branch — and do the expensive work (hash check) even when you already
+> know you'll reject, so rejection costs the same as acceptance.

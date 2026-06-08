@@ -95,3 +95,68 @@ def reset_limiter():
     limiter.reset()
     yield
     limiter.reset()
+
+
+# --- Guest PIN auth helpers (Step 4) -----------------------------------------
+
+import bcrypt  # noqa: E402
+from datetime import date, timedelta  # noqa: E402
+
+from models import GuestSession  # noqa: E402
+from services import ResolvedSession  # noqa: E402
+from routers.guest import get_guest_auth_service  # noqa: E402
+
+ROOM_A = uuid.UUID("33333333-3333-3333-3333-333333333333")
+SESSION_A = uuid.UUID("44444444-4444-4444-4444-444444444444")
+GUEST_PIN = "123456"
+
+
+def make_guest_session(*, pin: str = GUEST_PIN, days_until_checkout: int = 2, **overrides):
+    """A detached GuestSession (no DB) with a real bcrypt PIN hash."""
+    today = date.today()
+    fields = dict(
+        id=SESSION_A,
+        hotel_id=HOTEL_A,
+        room_id=ROOM_A,
+        guest_name="Test Guest",
+        pin_hash=bcrypt.hashpw(pin.encode(), bcrypt.gensalt()).decode(),
+        checkin_date=today - timedelta(days=1),
+        checkout_date=today + timedelta(days=days_until_checkout),
+        is_checked_out=False,
+    )
+    fields.update(overrides)
+    return GuestSession(**fields)
+
+
+def make_resolved(session=None, room_number: str = "101", tz: str | None = "UTC"):
+    """Wrap a session as the service's ResolvedSession (or None for 'no match')."""
+    if session is None:
+        return None
+    return ResolvedSession(session=session, room_number=room_number, hotel_timezone=tz)
+
+
+class _FakeGuestAuthService:
+    """Stand-in for GuestAuthService that skips the DB."""
+
+    def __init__(self, resolved):
+        self.resolved = resolved
+        self.recorded: list = []
+
+    async def find_active_session(self, hotel_slug, room_number, today=None):
+        return self.resolved
+
+    async def record_token(self, session, token, expires_at):
+        self.recorded.append((token, expires_at))
+
+
+@pytest.fixture
+def set_guest_service(app):
+    """Install a fake guest-auth service returning the given ResolvedSession (or None)."""
+
+    def _install(resolved) -> _FakeGuestAuthService:
+        fake = _FakeGuestAuthService(resolved)
+        app.dependency_overrides[get_guest_auth_service] = lambda: fake
+        return fake
+
+    yield _install
+    app.dependency_overrides.pop(get_guest_auth_service, None)

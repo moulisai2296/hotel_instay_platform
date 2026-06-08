@@ -46,7 +46,8 @@ class RequestContext(BaseModel):
     app_role: str  # staff | dept_manager | hotel_manager | admin | guest
     hotel_id: Optional[uuid.UUID] = None  # NULL only for the platform super-admin
     department_id: Optional[uuid.UUID] = None  # staff / dept_manager only
-    session_id: Optional[uuid.UUID] = None  # guests only (PIN flow, Step 4)
+    session_id: Optional[uuid.UUID] = None  # guests only (PIN flow)
+    room_id: Optional[uuid.UUID] = None  # guests only — the room their stay is in
 
     @property
     def is_super_admin(self) -> bool:
@@ -89,6 +90,7 @@ async def get_context(request: Request) -> RequestContext:
             hotel_id=payload.get("hotel_id"),
             department_id=payload.get("department_id"),
             session_id=payload.get("session_id"),
+            room_id=payload.get("room_id"),
         )
     except (KeyError, ValueError):
         # `sub`/`app_role` missing or a claim is not a valid UUID.
@@ -119,4 +121,15 @@ async def verify_path_hotel(
 ) -> RequestContext:
     """Dependency for ``/.../{hotel_id}/...`` routes: enforce the path matches the token."""
     assert_hotel_access(ctx, hotel_id)
+    return ctx
+
+
+async def require_guest(ctx: RequestContext = Depends(get_context)) -> RequestContext:
+    """Restrict a route to guest-PIN principals (``app_role == "guest"``)."""
+    if ctx.app_role != "guest":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Guests only",
+            headers={"X-Error-Code": "GUEST_ONLY"},
+        )
     return ctx
