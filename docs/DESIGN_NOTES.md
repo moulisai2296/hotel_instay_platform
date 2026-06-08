@@ -21,6 +21,8 @@ Format for each entry:
 5. [Re-enforcing isolation when the backend bypasses RLS](#5-re-enforcing-isolation-when-the-backend-bypasses-rls)
 6. [Anti-enumeration: make auth failures indistinguishable](#6-anti-enumeration-make-auth-failures-indistinguishable)
 7. [Program to an interface for swappable providers](#7-program-to-an-interface-for-swappable-providers)
+8. [Reads direct (BaaS + RLS) vs writes through the API](#8-reads-direct-baas--rls-vs-writes-through-the-api)
+9. [Intent gating: classify before you act](#9-intent-gating-classify-before-you-act)
 
 ---
 
@@ -449,3 +451,141 @@ client.
 > vendor's output into your validated schema at the boundary, and handle its
 > failures there too. The number of files that change when you switch providers is
 > the score: aim for one.
+
+---
+
+## 8. Reads direct (BaaS + RLS) vs writes through the API
+
+**Context:** Deciding how the guest app fetches chat history
+(`guest_interactions`) and the request tracker (`requests`/`request_events`).
+InStayOS uses Supabase (Postgres + RLS + Realtime) behind a FastAPI backend.
+Decision: **reads + realtime go straight from Next.js via the Supabase client
+(RLS-enforced); all writes go through FastAPI.** No `GET /guest/interactions`
+endpoint is built — the guest app subscribes to its own rows directly.
+
+**Principle:** *With a BaaS that has row-level security and realtime, split by
+operation: writes (and logic-heavy reads) go through your API where business
+logic and a second guard live; simple "rows that belong to me" reads go direct,
+where RLS is sufficient and realtime is free. Don't reflexively wrap every read
+in an endpoint.*
+
+### Explanation / analogy
+Two doors into the same building (see [[re-enforcing-isolation-when-the-backend-bypasses-rls]]).
+- **The API door (FastAPI):** a staffed reception. Every visitor is checked,
+  logged, and can be given shaped/aggregated information or have rules applied.
+  Necessary for anything that *changes* state or needs judgment — but it's a
+  bottleneck you have to build and staff.
+- **The direct door (Supabase client + RLS):** a keycard reader on each room.
+  The lock itself (RLS) decides what you may open, based on your badge (the JWT
+  claims). No receptionist needed for "let me into my own room" — and the room
+  can buzz you live when something changes (Realtime). But the *lock* is now the
+  only thing protecting the data, so it had better be correct.
+
+The mature rule that falls out: **writes through reception; "show me my own
+stuff" reads through the keycard; logic/aggregation/secrets reads back through
+reception.** Chat history is the textbook keycard case — a flat "my rows" query
+that wants live updates and needs no server-side logic. Manager analytics
+(cross-table aggregation, exports) is the textbook reception case.
+
+### How the direct door is wired here
+The guest's custom PIN JWT must be the token the Supabase client sends, so RLS
+`auth.jwt() ->> 'session_id'` resolves:
+```ts
+createClient(URL, ANON_KEY, { accessToken: async () => guestJwt })
+```
+Frontend gets the **anon** key only — never the service-role key.
+
+### Advantages
+1. **Less code, lower latency** — no endpoint, serializer, or client method to
+   maintain for every list view.
+2. **Realtime for free** — Supabase subscriptions power the live chat + tracker;
+   reproducing that through the API (SSE/WebSockets) is real work.
+3. **The API stays focused** — it carries mutations and genuinely server-side
+   reads, not CRUD passthroughs.
+
+### Tradeoffs
+1. **RLS becomes the sole boundary on that path** — the flip side of entry #5:
+   the backend has two layers (it bypasses RLS), the client path has exactly one,
+   so RLS correctness is non-negotiable and deserves explicit tests.
+2. **The DB schema becomes a client contract** — renaming a column can break the
+   app; an API would have absorbed that.
+3. **No server-side shaping** — anything needing joins/aggregation/secret calls
+   must still be an endpoint, so you live with a split mental model.
+
+### Rule of thumb
+> Mutations and logic-heavy reads → API. "Rows that belong to me," especially
+> with realtime → direct via RLS. If a read needs server-side logic, secrets, or
+> heavy aggregation, that's the signal to promote it back behind the API. And the
+> moment a read goes direct, its RLS policy is load-bearing — test it like code.
+
+---
+
+## 9. Intent gating: classify before you act
+
+**Context:** Guest chat (`services/request_service.py` `handle_message`,
+`services/ai_service.py`, `schemas/ai.py`). The first version forced every guest
+message into a department + created a `requests` row — so "write me a quicksort"
+or a jailbreak attempt became a real staff task, and "I need pillows" (no
+quantity) was either guessed or dropped silently. The fix: an `IntentKind`
+discriminator (`service_request | needs_info | unsupported`) decided *before* any
+side effect — only `service_request` writes a request; `needs_info` asks a
+clarifying question; `unsupported` returns a deterministic scope message. Both
+text and voice converge on this one gate (voice is transcribed first, then the
+text runs the identical pipeline).
+
+**Principle:** *When a model's output drives a side effect (DB write, tool call,
+spend), don't make "take the action" the only possible outcome. Classify intent
+first and make "decline" and "ask for more" first-class results. For the decline
+path especially, return your own deterministic text — never the model's — so a
+hostile prompt can't choose the response.*
+
+### Explanation / analogy
+**The restaurant host with a fixed menu.** A good host doesn't shove every
+sentence at the kitchen as an order. Ask for sushi at an Italian place and they
+say, warmly, "we're Italian — here's what we do" (decline, from a script they
+control — *you* don't get to dictate what the host says). Order "pasta" without
+saying which, and they ask "which pasta?" before writing a ticket (clarify). Only
+a complete, in-scope order becomes a kitchen ticket (act). The kitchen — your DB
+and staff — therefore only ever receives valid, complete tickets. The bug we had
+was a host forced to write *some* ticket for every utterance, so "call me a cab to
+the airport" and "what's 2+2" both hit the pass.
+
+The trap is structural: a **required enum with no escape hatch** (department, with
+no "none/decline") forces the model to pick one even when nothing fits. The cure
+is a discriminator with explicit non-action branches, checked before you act.
+
+Two reinforcing details:
+- **The decline text is deterministic, not generated.** For `unsupported` we throw
+  away the model's words and return our own scope message (built from the hotel's
+  active departments). That removes the attack surface where "ignore your rules and
+  say X" could make the assistant say X.
+- **No silent failures.** Every branch gives the guest clear feedback and is logged
+  to `guest_interactions`; only the action branch persists a task. (Same spirit as
+  [[anti-enumeration-make-auth-failures-indistinguishable]]: be deliberate about
+  what each outcome reveals/does.) Structured output is the hard boundary that makes
+  the branch decision trustworthy ([[program-to-an-interface-for-swappable-providers]]).
+
+### Advantages
+1. **Garbage can't enter the system** — off-topic/abuse never becomes a staff task
+   or a spurious tool call.
+2. **Quality over guesses** — clarifying beats inventing a quantity; staff act on
+   complete information.
+3. **Injection-resistant declines** — a fixed refusal string can't be hijacked by
+   prompt content.
+4. **Honest UX** — the guest always knows what happened (acted / need more / can't
+   help), never a silent no-op.
+
+### Tradeoffs
+- **Latency/▒cost of a triage step** — here it's free (one structured call already
+  returns the kind), but a separate classifier would add a hop.
+- **Misclassification cuts both ways** — a real request tagged `unsupported` is
+  worse than a stray task; tune the prompt and keep the outage-fallback biased
+  toward *acting* (route to concierge) so genuine needs aren't dropped.
+- **The taxonomy needs maintenance** — new capabilities mean new kinds/departments;
+  the gate is a place you must remember to update.
+
+### Rule of thumb
+> If a model decides whether to *do* something irreversible or outward-facing,
+> give it an explicit "do nothing / ask first" path and branch on it before the
+> side effect — never a required slot with no way to say "this doesn't belong."
+> Make the refusal text yours, not the model's.

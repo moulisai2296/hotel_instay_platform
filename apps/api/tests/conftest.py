@@ -38,6 +38,7 @@ def make_token(
     hotel_id: uuid.UUID | None = HOTEL_A,
     department_id: uuid.UUID | None = None,
     session_id: uuid.UUID | None = None,
+    room_id: uuid.UUID | None = None,
     token_type: str = "access",
     expired: bool = False,
 ) -> str:
@@ -55,6 +56,8 @@ def make_token(
     }
     if session_id:
         payload["session_id"] = str(session_id)
+    if room_id:
+        payload["room_id"] = str(room_id)
     return jwt.encode(payload, SECRET, algorithm="HS256")
 
 
@@ -160,3 +163,117 @@ def set_guest_service(app):
 
     yield _install
     app.dependency_overrides.pop(get_guest_auth_service, None)
+
+
+# --- Request creation + transcribe helpers (Step 6) --------------------------
+
+from datetime import timezone  # noqa: E402
+from types import SimpleNamespace  # noqa: E402
+
+from models.base import DepartmentType, RequestPriority, RequestStatus  # noqa: E402
+from schemas.ai import ExtractedItem, IntentKind, IntentResult  # noqa: E402
+from services.request_service import RequestService  # noqa: E402
+import routers.requests as _requests_router  # noqa: E402
+import routers.ai as _ai_router  # noqa: E402
+
+DEPT_A = uuid.UUID("55555555-5555-5555-5555-555555555555")
+DEPT_DEFAULT = uuid.UUID("66666666-6666-6666-6666-666666666666")
+
+
+def guest_token() -> str:
+    """A guest JWT carrying hotel/room/session, accepted by require_guest + get_context."""
+    return make_token(
+        app_role="guest", hotel_id=HOTEL_A, session_id=SESSION_A, room_id=ROOM_A
+    )
+
+
+def make_intent(**overrides) -> IntentResult:
+    fields = dict(
+        kind=IntentKind.service_request,
+        department=DepartmentType.housekeeping,
+        priority=RequestPriority.high,
+        ai_title="Extra towels x2",
+        items=[ExtractedItem(item="towel", qty=2)],
+        sentiment=0.2,
+        reason="guest asked for towels",
+        guest_reply="Of course — towels are on the way!",
+    )
+    fields.update(overrides)
+    return IntentResult(**fields)
+
+
+class _FakeAIService:
+    def __init__(self, intent: IntentResult):
+        self._intent = intent
+
+    async def classify_intent(self, text, hotel_context=None, history=None):
+        return self._intent
+
+
+class _FakeRequestRepo:
+    """In-memory stand-in for RequestRepository; records what would be persisted."""
+
+    def __init__(self, *, dept_id=DEPT_A, default_dept_id=DEPT_DEFAULT, hotel_context=None):
+        self._dept_id = dept_id
+        self._default = default_dept_id
+        self._hotel_context = hotel_context or {
+            "hotel_name": "Grand Hotel",
+            "departments": ["housekeeping", "fb"],
+        }
+        self.persisted = None
+
+    async def get_hotel_context(self, hotel_id):
+        return self._hotel_context
+
+    async def recent_interactions(self, session_id, limit=6):
+        return []
+
+    async def resolve_department_id(self, hotel_id, dept_type):
+        return self._dept_id
+
+    async def default_department_id(self, hotel_id):
+        return self._default
+
+    async def persist(self, request, event, interactions):
+        if request is not None:
+            # Mimic the DB assigning id/created_at and the server_default status.
+            request.id = request.id or uuid.uuid4()
+            request.created_at = datetime.now(timezone.utc)
+            request.status = request.status or RequestStatus.pending
+        self.persisted = SimpleNamespace(
+            request=request, event=event, interactions=interactions
+        )
+        return request
+
+
+@pytest.fixture
+def set_request_service(app):
+    """Install a RequestService built from a fake repo + fake AIService; returns the repo."""
+
+    def _install(intent: IntentResult | None = None, **repo_kwargs) -> _FakeRequestRepo:
+        repo = _FakeRequestRepo(**repo_kwargs)
+        service = RequestService(repo, _FakeAIService(intent or make_intent()))
+        app.dependency_overrides[_requests_router.get_request_service] = lambda: service
+        return repo
+
+    yield _install
+    app.dependency_overrides.pop(_requests_router.get_request_service, None)
+
+
+class _FakeVoiceService:
+    def __init__(self, text="transcribed text"):
+        self._text = text
+
+    async def transcribe(self, audio: bytes, mimetype: str = "audio/wav") -> str:
+        return self._text
+
+
+@pytest.fixture
+def set_voice_service(app):
+    def _install(text="transcribed text") -> _FakeVoiceService:
+        fake = _FakeVoiceService(text)
+        app.dependency_overrides[_ai_router.get_voice] = lambda: fake
+        return fake
+
+    yield _install
+    app.dependency_overrides.pop(_ai_router.get_voice, None)
