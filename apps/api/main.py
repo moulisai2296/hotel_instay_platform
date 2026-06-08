@@ -13,6 +13,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from auth import get_auth_kit
 from auth.schemas import CustomUserRead
 from middleware import limiter, rate_limit_handler
+from routers import guest as guest_router
 
 
 def _cors_origins() -> list[str]:
@@ -87,6 +88,9 @@ def create_app() -> FastAPI:
     async def me(current_user=Depends(auth_kit.current_active_user)):
         """Current authenticated staff profile (InStayOS fields included)."""
         return current_user
+
+    # Guest PIN auth (custom flow, not fast-authkit).
+    app.include_router(guest_router.router)
 
     @app.get("/health", tags=["meta"])
     async def health():
