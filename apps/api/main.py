@@ -6,10 +6,13 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from auth import get_auth_kit
 from auth.schemas import CustomUserRead
+from middleware import limiter, rate_limit_handler
 
 
 def _cors_origins() -> list[str]:
@@ -20,6 +23,15 @@ def _cors_origins() -> list[str]:
 
 def create_app() -> FastAPI:
     app = FastAPI(title="InStayOS API", version="0.1.0")
+
+    # Rate limiting: a global per-IP default applies to every route (covers
+    # /auth/login). slowapi reads the limiter off app.state; SlowAPIMiddleware
+    # performs the per-request check. Added before CORS so CORS stays the
+    # OUTERMOST middleware — a 429 still carries CORS headers, otherwise the
+    # browser would block the frontend from reading the rate-limit response.
+    app.state.limiter = limiter
+    app.add_middleware(SlowAPIMiddleware)
+    app.add_exception_handler(RateLimitExceeded, rate_limit_handler)
 
     # CORS — the Next.js frontend calls the API with cookies, so credentials must
     # be allowed (which requires explicit origins, never "*").
@@ -34,11 +46,21 @@ def create_app() -> FastAPI:
     # Consistent error envelope: {"error": "...", "code": "..."} (CLAUDE.md).
     @app.exception_handler(StarletteHTTPException)
     async def http_exception_handler(request: Request, exc: StarletteHTTPException):
-        try:
-            code = HTTPStatus(exc.status_code).name
-        except ValueError:
-            code = "ERROR"
-        return JSONResponse(status_code=exc.status_code, content={"error": exc.detail, "code": code})
+        # A raiser can specify a precise body code via an "X-Error-Code" header
+        # (e.g. HOTEL_MISMATCH, NOT_AUTHENTICATED); otherwise fall back to the
+        # HTTP status name. The header is internal — strip it from the response.
+        headers = dict(exc.headers or {})
+        code = headers.pop("X-Error-Code", None)
+        if code is None:
+            try:
+                code = HTTPStatus(exc.status_code).name
+            except ValueError:
+                code = "ERROR"
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"error": exc.detail, "code": code},
+            headers=headers or None,
+        )
 
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(request: Request, exc: RequestValidationError):
