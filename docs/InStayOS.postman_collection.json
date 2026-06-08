@@ -1,0 +1,190 @@
+{
+  "info": {
+    "name": "InStayOS API",
+    "description": "InStayOS backend (FastAPI) through Step 6. Run Auth → Login (captures staff_token) and Guest → Verify PIN (captures guest_token); later requests reuse them automatically. See docs/API.md for the full reference incl. the direct-from-Supabase read paths.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:8000" },
+    { "key": "hotel_slug", "value": "grand-hotel" },
+    { "key": "room_number", "value": "412" },
+    { "key": "pin", "value": "481920" },
+    { "key": "email", "value": "manager@hotel.com" },
+    { "key": "password", "value": "SmokeTest123!" },
+    { "key": "staff_token", "value": "" },
+    { "key": "guest_token", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Auth (staff/manager/admin)",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "if (j.access_token) { pm.collectionVariables.set('staff_token', j.access_token); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/auth/login", "host": ["{{base_url}}"], "path": ["auth", "login"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Me",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{staff_token}}" }],
+            "url": { "raw": "{{base_url}}/auth/me", "host": ["{{base_url}}"], "path": ["auth", "me"] }
+          }
+        },
+        {
+          "name": "Refresh",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{staff_token}}" }],
+            "url": { "raw": "{{base_url}}/auth/refresh", "host": ["{{base_url}}"], "path": ["auth", "refresh"] },
+            "description": "Send the REFRESH token (cookie or bearer). Bearer shown for convenience."
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{staff_token}}" }],
+            "url": { "raw": "{{base_url}}/auth/logout", "host": ["{{base_url}}"], "path": ["auth", "logout"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Guest",
+      "item": [
+        {
+          "name": "Verify PIN",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "if (j.access_token) { pm.collectionVariables.set('guest_token', j.access_token); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/guest/verify-pin", "host": ["{{base_url}}"], "path": ["guest", "verify-pin"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"hotel_slug\": \"{{hotel_slug}}\",\n  \"room_number\": \"{{room_number}}\",\n  \"pin\": \"{{pin}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Me",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{guest_token}}" }],
+            "url": { "raw": "{{base_url}}/guest/me", "host": ["{{base_url}}"], "path": ["guest", "me"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Requests & AI (guest)",
+      "item": [
+        {
+          "name": "Create request (service_request)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{guest_token}}" }
+            ],
+            "url": { "raw": "{{base_url}}/requests/create", "host": ["{{base_url}}"], "path": ["requests", "create"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"raw_input\": \"I need 2 extra towels in room 412\",\n  \"input_mode\": \"text\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Create request (needs_info example)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{guest_token}}" }
+            ],
+            "url": { "raw": "{{base_url}}/requests/create", "host": ["{{base_url}}"], "path": ["requests", "create"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"raw_input\": \"I need extra pillows\",\n  \"input_mode\": \"text\"\n}"
+            },
+            "description": "Missing quantity -> expect kind=needs_info, request=null, a clarifying guest_reply."
+          }
+        },
+        {
+          "name": "Create request (unsupported example)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{guest_token}}" }
+            ],
+            "url": { "raw": "{{base_url}}/requests/create", "host": ["{{base_url}}"], "path": ["requests", "create"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"raw_input\": \"write me a python quicksort\",\n  \"input_mode\": \"text\"\n}"
+            },
+            "description": "Off-topic -> expect kind=unsupported, request=null, deterministic scope message."
+          }
+        },
+        {
+          "name": "Transcribe voice note",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{guest_token}}" }],
+            "url": { "raw": "{{base_url}}/ai/transcribe", "host": ["{{base_url}}"], "path": ["ai", "transcribe"] },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "audio", "type": "file", "src": [], "description": "A .wav/.mp3 voice note" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Meta",
+      "item": [
+        {
+          "name": "Health",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/health", "host": ["{{base_url}}"], "path": ["health"] }
+          }
+        }
+      ]
+    }
+  ]
+}
