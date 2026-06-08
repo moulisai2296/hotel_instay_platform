@@ -111,27 +111,47 @@ instayos/
 - Role from `users.role` enum: staff | dept_manager | hotel_manager | admin
 - hotel_id from `users.hotel_id` — enforced on every request via middleware
 
-### Guest (Custom PIN Flow)
-- Guest enters 6-digit PIN on tablet
-- POST `/guest/verify-pin` → FastAPI verifies bcrypt hash against `guest_sessions.pin_hash`
-- Returns short-lived JWT (expires at checkout date)
-- Guest JWT contains: session_id, hotel_id, room_id, guest_name
+### Guest (Custom PIN Flow) — MOBILE-FIRST (as implemented)
+- Primary surface is the guest's **own phone** opening a per-hotel web app at
+  `/h/{hotel-slug}` — NOT an in-room tablet. Tablets are an optional add-on,
+  deferred behind a `GUEST_ACCESS_MODE` env (default `mobile`).
+- Guest enters their **room number + 6-digit PIN** (both given at check-in).
+- POST `/guest/verify-pin` body `{hotel_slug, room_number, pin}` → FastAPI resolves
+  the active `guest_sessions` row for that hotel+room, verifies the bcrypt PIN.
+- Anti-enumeration: every failure returns one uniform `401 INVALID_CREDENTIALS`
+  (+ a dummy bcrypt to equalize timing); brute force throttled (`PIN_VERIFY_LIMIT`).
+- Returns short-lived JWT (expires at checkout_date 23:59 in the hotel timezone).
+- Guest JWT contains: session_id, hotel_id, room_id, guest_name (type="access").
 - Store in memory / sessionStorage only — never localStorage
 
-## AI Layer Architecture (Provider-Agnostic)
+## AI Layer Architecture (Provider-Agnostic) — as implemented
 
 ```python
-# services/ai_service.py — always use this abstraction
+# services/ai_service.py — always use this abstraction (built on LangChain)
 class AIService:
-    async def classify_intent(self, text: str, hotel_context: dict) -> IntentResult
-    async def chat_response(self, messages: list, hotel_context: dict) -> str
-    async def analyze_sentiment(self, text: str) -> float  # -1.0 to 1.0
-    async def extract_items(self, text: str) -> list[dict]
+    async def classify_intent(self, text, hotel_context, history=None) -> IntentResult
+    async def chat_response(self, messages, hotel_context) -> str
+    async def analyze_sentiment(self, text) -> float          # clamped to -1.0..1.0
+    async def extract_items(self, text) -> list[ExtractedItem]
 
-# Current provider: Gemini Pro
-# To swap provider: only change the implementation inside AIService
-# Never call Gemini/Claude/OpenAI directly from routes — always via AIService
+# Provider/model are CONFIG, not code: LangChain init_chat_model(AI_MODEL,
+# model_provider=AI_MODEL_PROVIDER). Default gemini-2.5-flash via google_genai
+# (CLAUDE.md's earlier gemini-1.5-pro is retired). Swap to Claude/GPT = env change.
+# Never call a model SDK directly from routes — always via AIService.
+# Voice: services/voice_service.py (Deepgram), POST /ai/transcribe -> text.
 ```
+
+### Intent guardrails (request creation is a gated chat turn)
+`IntentResult.kind` ∈ `service_request | needs_info | unsupported`, decided BEFORE
+any DB write (`schemas/ai.py`, `services/request_service.py`):
+- `service_request` → route to a department + persist a `requests` row + a "created"
+  `request_events` row.
+- `needs_info` → ask one clarifying question (e.g. pillows w/o a quantity); NO
+  request. The follow-up resolves via recent chat history passed into classify.
+- `unsupported` (off-topic/coding/jailbreak) → return a DETERMINISTIC scope message
+  built from the hotel's active departments (model free-text discarded). NO request.
+Every turn is logged to `guest_interactions`; only `service_request` creates a task.
+On model failure, degrade to a real concierge request (never silently drop a need).
 
 ## Supabase Realtime Subscriptions
 Enable realtime on these tables ONLY:
@@ -151,9 +171,17 @@ SUPABASE_SERVICE_ROLE_KEY=     # Backend only, never expose to frontend
 AUTHKIT_SECRET_KEY=
 AUTHKIT_DATABASE_URL=          # Supabase postgres connection string
 
-# AI
-GEMINI_API_KEY=
+# AI (LangChain). Key from Google AI Studio — a Gemini Advanced SUBSCRIPTION is NOT an API key.
+GEMINI_API_KEY=                # or GOOGLE_API_KEY (either is read)
 DEEPGRAM_API_KEY=
+AI_MODEL=gemini-2.5-flash      # optional; any LangChain-supported model
+AI_MODEL_PROVIDER=google_genai # optional; e.g. anthropic, openai
+
+# Backend behavior (all optional, sensible defaults)
+GUEST_ACCESS_MODE=mobile       # mobile | tablet | both
+RATE_LIMIT_DEFAULT=100/minute
+RATE_LIMIT_STORAGE_URI=memory://  # set redis://... for multi-instance Railway
+CORS_ORIGINS=http://localhost:3000
 
 # Encryption
 AES_ENCRYPTION_KEY=            # For PMS API keys at rest
