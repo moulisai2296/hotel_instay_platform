@@ -20,6 +20,7 @@ Format for each entry:
 4. [Bootstrapping the first admin in a multi-tenant SaaS](#4-bootstrapping-the-first-admin-in-a-multi-tenant-saas)
 5. [Re-enforcing isolation when the backend bypasses RLS](#5-re-enforcing-isolation-when-the-backend-bypasses-rls)
 6. [Anti-enumeration: make auth failures indistinguishable](#6-anti-enumeration-make-auth-failures-indistinguishable)
+7. [Program to an interface for swappable providers](#7-program-to-an-interface-for-swappable-providers)
 
 ---
 
@@ -377,3 +378,74 @@ Two leaks must be closed, not one:
 > path must be indistinguishable in **content and timing**. Decide what to reveal
 > *before* you branch — and do the expensive work (hash check) even when you already
 > know you'll reject, so rejection costs the same as acceptance.
+
+---
+
+## 7. Program to an interface for swappable providers
+
+**Context:** Step 5 AI layer (`apps/api/services/ai_service.py`,
+`schemas/ai.py`). The app must be able to swap Gemini for Claude/GPT "with zero
+route changes" (CLAUDE.md / ARCHITECTURE.md). Nothing in the app calls a model SDK
+directly — routes and the request pipeline depend on `AIService` (four methods
+returning our own `IntentResult`/`ExtractedItem` types). LangChain + the Gemini
+provider live entirely *behind* that facade, selected by env
+(`AI_MODEL`/`AI_MODEL_PROVIDER`), so changing providers touches one file.
+
+**Principle:** *Depend on an interface you own that is expressed in your own types,
+not on a vendor SDK. Put the vendor behind that seam, make it convert its raw
+output into your validated schema, and add the failure handling at the seam — so
+swapping or breaking the vendor never ripples into callers.*
+
+### Explanation / analogy
+**The wall power socket.** Appliances (routes, services) plug into a standard
+socket — the `AIService` interface. Behind the wall the electricity may come from
+the grid, solar, or a generator (Gemini, Claude, GPT); the appliances neither know
+nor care, because the socket shape is the contract. You can change the *source*
+without rewiring a single appliance. The anti-pattern is soldering every appliance
+directly to the incoming grid wires (calling the Gemini SDK inside routes) — now
+switching to solar means re-soldering them all.
+
+Two things make the socket trustworthy:
+- **It guarantees the output's shape, not just its presence.** A raw model emits
+  free text; the boundary converts it into a validated `IntentResult` whose
+  `department` is a real enum value (`model.with_structured_output(IntentResult)`).
+  The provider conforms to *your* schema — a hallucinated department fails
+  validation at the seam instead of corrupting a downstream DB write.
+- **A breaker at the boundary.** `classify_intent` falls back to concierge/medium
+  on model error so a flaky provider can't take down the request pipeline. The
+  facade is the one chokepoint every call flows through — the natural home for that
+  safety net.
+
+This is the seam principle of
+[[isolating-a-third-party-framework-behind-your-own-seams-fast-authkit]] (entry #3)
+applied to a *capability* instead of a framework, built on
+[[lazy-initialization-of-external-resources]] (entry #1) for the lazy, memoized
+client.
+
+### Advantages
+1. **Swap cost is O(1), not O(call sites)** — one config/file change vs. editing
+   every route that talks to the model.
+2. **The contract is yours** — callers consume `IntentResult` with domain enums, so
+   the model's quirks (JSON formatting, field names) are normalized at one place.
+3. **Testable without the vendor** — inject a fake model into `AIService`; the whole
+   app's AI behavior is unit-tested with no network/API key.
+4. **One place for cross-cutting policy** — retries, fallbacks, rate limits,
+   logging, prompt versioning all live at the facade.
+
+### Tradeoffs
+- **Lowest-common-denominator risk** — a too-rigid interface can hide a provider's
+  unique strengths (e.g. native tool-calling, streaming). Design the interface
+  around your *use cases*, not the union of every vendor feature.
+- **Indirection cost** — one more layer to read through; worth it only when swap-
+  ability or testability is real (it is here — provider-agnostic is an explicit
+  requirement).
+- **Abstractions leak** — token limits, latency, and content policies differ by
+  provider and can surface through the seam; the facade narrows but never fully
+  hides them.
+
+### Rule of thumb
+> If you might swap a vendor — or just want to test without it — call your own
+> interface, expressed in your own types, never the SDK directly. Convert the
+> vendor's output into your validated schema at the boundary, and handle its
+> failures there too. The number of files that change when you switch providers is
+> the score: aim for one.
