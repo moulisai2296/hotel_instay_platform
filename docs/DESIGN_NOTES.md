@@ -17,6 +17,8 @@ Format for each entry:
 1. [Lazy initialization of external resources](#1-lazy-initialization-of-external-resources)
 2. [DB-first schema ownership (migrations as source of truth)](#2-db-first-schema-ownership-migrations-as-source-of-truth)
 3. [Isolating a third-party framework behind your own seams (fast-authkit)](#3-isolating-a-third-party-framework-behind-your-own-seams-fast-authkit)
+4. [Bootstrapping the first admin in a multi-tenant SaaS](#4-bootstrapping-the-first-admin-in-a-multi-tenant-saas)
+5. [Re-enforcing isolation when the backend bypasses RLS](#5-re-enforcing-isolation-when-the-backend-bypasses-rls)
 
 ---
 
@@ -188,3 +190,126 @@ adapter pipes** at the connection points. Each workaround below is one adapter p
 > flag, route override, wrapper). And treat any generated/scaffolded file as **a PR to
 > review, not a black box**. If matching the library to your app needs more than a few
 > small adapters, reconsider the library.
+
+---
+
+## 4. Bootstrapping the first admin in a multi-tenant SaaS
+
+**Context:** Public self-registration is disabled (correct for a B2B product), so how
+does the very first privileged account come to exist in production?
+
+**Principle:** *Bootstrap exactly one privileged account out-of-band via an idempotent
+deploy step that reads credentials from secrets — never from the repo — then create
+every other user in-app.*
+
+### Explanation / analogy
+A newly built office: the locksmith installs all the locks (migrations create the
+tables), but every door is locked and nobody's inside. Someone must be handed the
+**first master key out-of-band**, securely, by the building owner. Once inside, they
+cut all the other keys themselves (the admin panel). You don't mail copies of the
+master key to everyone (self-registration), and you don't tape it to the front door
+(hardcoded credentials in the repo or a migration).
+
+Two admin layers exist in a multi-tenant SaaS, so only **one** account ever needs
+bootstrapping:
+- **Platform super-admin** (the operator) — created once at deploy.
+- **Per-hotel admins** — created in-app during hotel onboarding; they then invite their
+  own staff.
+
+### Approaches (ranked)
+| Approach | How | Notes |
+|---|---|---|
+| Idempotent seed as a one-off deploy job ⭐ | runs after migrations; reads `BOOTSTRAP_ADMIN_*` from secrets; no-op if an admin exists | recommended |
+| CLI management command | operator runs once, `createsuperuser`-style | Django / Rails |
+| First-run setup wizard | app detects zero users → one-time `/setup` → then locks | self-hosted apps |
+| Admin row inside a migration | hardcoded credentials in SQL | ❌ anti-pattern |
+
+### Recommended for InStayOS
+1. Migrations run first (deploy step).
+2. A one-off `seed_admin` job (NOT on app boot): idempotent, creates the super-admin
+   (`role='admin'`, `hotel_id=NULL`) from env/secret; generate a temp password or
+   require a reset.
+3. Force password rotation on first login; store only hashes.
+4. Super-admin → creates hotels + each hotel's first admin → admins invite staff via an
+   invite / reset-link flow (so operators never type anyone's password).
+
+### Tradeoffs / golden rules
+- Credentials come from a secret manager / env, **never the repo**.
+- The bootstrap is a **deploy step, not an app-startup side effect** — avoids races
+  across multiple instances (same reasoning as entry #1, lazy init).
+- Only password hashes are stored; first login forces a reset.
+
+### Rule of thumb
+> If a privileged account must exist before anyone can log in, create it with an
+> idempotent, secret-driven deploy job — one master key, handed over out-of-band, never
+> checked into the repo.
+
+---
+
+## 5. Re-enforcing isolation when the backend bypasses RLS
+
+**Context:** Step 3 hotel-isolation middleware (`apps/api/middleware/context.py`).
+Supabase Row Level Security is enabled on every table, yet the FastAPI backend
+connects with the **service role key**, which bypasses RLS. So the same tenant
+wall that protects the browser→Supabase read path is *absent* on the
+browser→FastAPI→Supabase write path. `get_context` rebuilds the tenant scope from
+the signed JWT and `assert_hotel_access` rejects cross-hotel access
+(`context.py` — super-admin with `hotel_id=NULL` exempt). CLAUDE.md states it
+plainly: "FastAPI uses service role key — bypasses RLS — hotel isolation done in
+middleware."
+
+**Principle:** *A security control only protects the path that actually passes
+through it. When your trusted backend bypasses the database's own guard (RLS via
+the service role), you must re-implement that guard at the layer that does have
+authority — and derive the tenant identity from a signed token, never from
+client-supplied input.*
+
+### Explanation / analogy
+There are two doors into the same data. Direct browser→Supabase connections use
+the **anon/authenticated** Postgres role, so RLS fires and filters every row by
+`auth.jwt() ->> 'hotel_id'`. But the backend uses the **service role** — a
+superuser-grade credential — and RLS is switched off for it by design (the backend
+legitimately needs to act across roles). "RLS is enabled ✓" lulls you into feeling
+safe, but it only ever guarded door #1.
+
+**The superintendent's master key.** RLS is the keycard lock on each floor: guests
+and staff badge in and only their own floor opens. The building superintendent,
+though, carries a **master key** that opens every floor — that's the service-role
+connection. When your app acts *as the super*, the floor locks mean nothing. So you
+don't trust the locks to contain the super; you put a **dispatcher** at the front
+desk who reads the work order, checks *"this job is for Building A"* against *"this
+worker belongs to Building A"*, and refuses to send them elsewhere. The lock never
+stopped the super because the super is privileged — the dispatcher is what enforces
+the boundary for privileged actors. `assert_hotel_access` is that dispatcher.
+
+Crucially, the dispatcher reads the *signed* work order (`hotel_id` from the JWT),
+not a sticky note the visitor wrote (a `hotel_id` in the request body) — otherwise
+the check guards nothing.
+
+### Advantages
+1. **The boundary lives where the authority is.** The privileged connection is
+   governed at the only layer that can see and stop it — the app — instead of
+   hoping a guard it already bypassed will help.
+2. **Defense-in-depth, genuinely independent.** The same "same-tenant" rule is now
+   enforced twice by different mechanisms: Postgres RLS on direct reads, app
+   middleware on service-role writes. Either can fail without breaching isolation.
+3. **Spoof-resistant.** Tenant identity comes from the signed JWT
+   (`get_context`), so a forged path/body `hotel_id` can't widen access.
+4. **Reusable seam.** A single dependency (`verify_path_hotel` / `assert_hotel_access`)
+   means new routers inherit the guard instead of re-deriving it.
+
+### Tradeoffs
+- **It's convention, not automatic.** RLS guards every query for free; the app
+  guard only protects routes that actually depend on it. One handler that queries
+  without `.where(hotel_id == ctx.hotel_id)` silently reopens the hole — which is
+  why per-query scoping has to be a disciplined, tested responsibility.
+- **Two rules can drift.** The app-layer check and the RLS policy must keep the
+  same definition of "same tenant"; change one and you must change the other.
+- **Slightly more trust in the app.** Bypassing RLS concentrates correctness in
+  backend code, so that code (and its tests) carry more of the security weight.
+
+### Rule of thumb
+> For every security control, ask *"which requests actually flow through this?"* If
+> a trusted, privileged path (service account, admin connection, internal service)
+> skips the guard, that path needs its **own** check at a layer it can't bypass —
+> and that check must key off a signed/authenticated identity, never client input.
