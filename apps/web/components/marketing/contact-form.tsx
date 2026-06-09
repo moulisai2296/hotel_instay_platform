@@ -70,10 +70,10 @@ export function ContactForm() {
       <Field label="Work email" error={errors.email?.message}>
         <Input className={inputCls} type="email" placeholder="you@hotel.com" {...register("email")} />
       </Field>
-      <Field label="What would you like to improve?" error={errors.message?.message}>
+      <Field label="How can we help?" error={errors.message?.message}>
         <textarea
           rows={4}
-          placeholder="We want faster guest service and better visibility into our operations…"
+          placeholder="I'd like a demo for our property / a question about pricing…"
           className={`w-full rounded-md border ${inputCls} px-3 py-2 text-sm outline-none`}
           {...register("message")}
         />
