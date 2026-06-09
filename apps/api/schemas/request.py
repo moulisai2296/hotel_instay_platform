@@ -39,5 +39,12 @@ class CreateRequestResponse(BaseModel):
     request: RequestSummary | None = None
 
 
+class UpdateRequestStatusRequest(BaseModel):
+    """Staff action: move a request to a new status, with an optional note."""
+
+    status: RequestStatus
+    note: str | None = Field(default=None, max_length=500)
+
+
 class TranscribeResponse(BaseModel):
     text: str

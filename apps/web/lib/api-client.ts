@@ -15,6 +15,8 @@ import type {
   GuestProfile,
   GuestVerifyRequest,
   GuestVerifyResponse,
+  RequestRecord,
+  RequestStatus,
   StaffProfile,
   TranscribeResponse,
 } from "@/types/api";
@@ -126,6 +128,21 @@ export const api = {
         method: "POST",
         token,
         body,
+      }),
+  },
+
+  // ── Staff actions (writes; reads go via Supabase + RLS) ────────────────────
+  staff: {
+    updateRequestStatus: (
+      token: string,
+      requestId: string,
+      status: RequestStatus,
+      note?: string,
+    ) =>
+      apiFetch<RequestRecord>(`/requests/${requestId}/status`, {
+        method: "PATCH",
+        token,
+        body: { status, note: note ?? null },
       }),
   },
 

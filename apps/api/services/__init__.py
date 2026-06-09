@@ -2,6 +2,7 @@
 
 from .ai_service import AIService, AIServiceError, get_ai_service
 from .request_service import RequestRepository, RequestService
+from .staff_service import StaffRequestService
 from .guest_auth_service import (
     GuestAuthService,
     ResolvedSession,
@@ -29,4 +30,5 @@ __all__ = [
     "get_voice_service",
     "RequestService",
     "RequestRepository",
+    "StaffRequestService",
 ]
