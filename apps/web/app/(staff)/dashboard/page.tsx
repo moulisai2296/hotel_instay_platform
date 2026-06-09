@@ -1,6 +1,6 @@
 "use client";
 
-import { TopBar } from "@/components/staff/top-bar";
+import { TopBar, navForRole } from "@/components/staff/top-bar";
 import { KanbanBoard } from "@/components/staff/kanban-board";
 import { useStaffGuard } from "@/hooks/use-staff-guard";
 
@@ -15,18 +15,11 @@ export default function DashboardPage() {
     );
   }
 
-  const isManager = profile.role === "hotel_manager" || profile.role === "admin";
   const isDeptScoped = profile.role === "staff" || profile.role === "dept_manager";
-  const nav = isManager
-    ? [
-        { label: "Overview", href: "/manager" },
-        { label: "Queue", href: "/dashboard" },
-      ]
-    : [];
 
   return (
     <div className="flex min-h-dvh flex-col bg-stone">
-      <TopBar nav={nav} />
+      <TopBar nav={navForRole(profile.role)} />
       <main className="flex flex-1 flex-col gap-4 p-5 md:p-6">
         <div>
           <h1 className="text-xl font-bold text-foreground">Request queue</h1>

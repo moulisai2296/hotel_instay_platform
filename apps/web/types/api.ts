@@ -127,3 +127,24 @@ export interface CreateRequestResponse {
 export interface TranscribeResponse {
   text: string;
 }
+
+// ── Staff check-in (manual guest session creation) ───────────────────────────
+
+export interface CreateGuestSessionBody {
+  room_number: string;
+  guest_name: string;
+  checkout_date: string; // ISO date (YYYY-MM-DD)
+  checkin_date?: string | null;
+  num_guests?: number;
+  guest_email?: string | null;
+  pin?: string | null;
+}
+
+export interface CreateGuestSessionResult {
+  session_id: string;
+  room_number: string;
+  guest_name: string;
+  pin: string; // shown once
+  checkin_date: string;
+  checkout_date: string;
+}

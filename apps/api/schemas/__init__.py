@@ -2,6 +2,7 @@
 
 from .ai import ExtractedItem, IntentKind, IntentResult
 from .guest import GuestProfile, VerifyPinRequest, VerifyPinResponse
+from .session import CreateGuestSessionRequest, CreateGuestSessionResponse
 from .request import (
     CreateRequestRequest,
     CreateRequestResponse,
@@ -14,6 +15,8 @@ __all__ = [
     "VerifyPinRequest",
     "VerifyPinResponse",
     "GuestProfile",
+    "CreateGuestSessionRequest",
+    "CreateGuestSessionResponse",
     "IntentResult",
     "IntentKind",
     "ExtractedItem",

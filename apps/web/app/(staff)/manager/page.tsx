@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Loader2, AlertTriangle, Clock, ListChecks, CheckCircle2, ArrowRight } from "lucide-react";
 import Link from "next/link";
-import { TopBar } from "@/components/staff/top-bar";
+import { TopBar, navForRole } from "@/components/staff/top-bar";
 import { useStaffGuard } from "@/hooks/use-staff-guard";
 import { useStaffStore } from "@/stores/staff-store";
 import { getStaffSupabase } from "@/lib/staff-supabase";
@@ -39,11 +39,6 @@ const DEPT_LABEL: Record<DepartmentType, string> = {
 };
 const ACTIVE: RequestStatus[] = ["pending", "assigned", "in_progress", "escalated"];
 const PENDING: RequestStatus[] = ["pending", "assigned"];
-
-const NAV = [
-  { label: "Overview", href: "/manager" },
-  { label: "Queue", href: "/dashboard" },
-];
 
 export default function ManagerPage() {
   const router = useRouter();
@@ -130,7 +125,7 @@ export default function ManagerPage() {
 
   return (
     <div className="flex min-h-dvh flex-col bg-stone">
-      <TopBar nav={NAV} />
+      <TopBar nav={navForRole(profile.role)} />
       <main className="mx-auto w-full max-w-5xl flex-1 space-y-5 p-5 md:p-6">
         <div>
           <h1 className="text-xl font-bold text-foreground">Hotel overview</h1>

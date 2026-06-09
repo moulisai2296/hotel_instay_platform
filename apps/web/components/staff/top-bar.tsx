@@ -75,4 +75,16 @@ export function TopBar({ nav = [] }: { nav?: { label: string; href: string }[] }
   );
 }
 
+/** Nav items for a role. Managers/admins get Overview + Admin; staff just the queue. */
+export function navForRole(role: string): { label: string; href: string }[] {
+  if (role === "hotel_manager" || role === "admin") {
+    return [
+      { label: "Overview", href: "/manager" },
+      { label: "Queue", href: "/dashboard" },
+      { label: "Admin", href: "/admin" },
+    ];
+  }
+  return [];
+}
+
 export { ROLE_LABEL };
