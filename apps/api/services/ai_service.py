@@ -236,6 +236,11 @@ def build_chat_model() -> BaseChatModel:
                 "not provide an API key."
             )
         kwargs["api_key"] = key
+        # Free-tier quota (429 RESOURCE_EXHAUSTED) otherwise triggers ~6 backoff
+        # retries (~30s+) before classify_intent's graceful fallback kicks in.
+        # Cap retries + add a timeout so a rate-limited turn degrades in seconds.
+        kwargs["max_retries"] = int(os.getenv("AI_MAX_RETRIES", "1"))
+        kwargs["timeout"] = float(os.getenv("AI_TIMEOUT", "20"))
     return init_chat_model(model, model_provider=provider, **kwargs)
 
 
