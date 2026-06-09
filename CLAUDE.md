@@ -65,8 +65,11 @@ instayos/
 └── docs/
     ├── PRD.md
     ├── SCHEMA.md
-    ├── API.md
-    └── FLOWS.md
+    ├── API.md                    # API source of truth for the UI (REST + direct-Supabase)
+    ├── FLOWS.md
+    ├── ARCHITECTURE.md
+    ├── DESIGN_NOTES.md           # analogy-first design journal
+    └── BUGFIXES.md               # running log of bugs found + fixes (BF-xxx)
 └── ui_prototypes/
     ├── instayos_guest_prototype.html
     ├── instayos_landing_router.html
@@ -153,6 +156,19 @@ any DB write (`schemas/ai.py`, `services/request_service.py`):
 Every turn is logged to `guest_interactions`; only `service_request` creates a task.
 On model failure, degrade to a real concierge request (never silently drop a need).
 
+## Staff / Manager / Admin write endpoints (as implemented)
+Reads (kanban, manager overview, in-house guests) go **direct from Next.js via
+Supabase + RLS** (dept-scoped for staff, hotel-wide for managers). Only writes hit
+FastAPI, guarded by role + app-layer hotel/dept isolation (`middleware/context.py`):
+- `PATCH /requests/{id}/status` — `require_staff` (403 `STAFF_ONLY`). Moves a
+  request's status + appends a `request_events` row; claims unassigned on "start",
+  stamps `completed_at`/`resolution_time_mins` on done. `services/staff_service.py`.
+- `POST /guest-sessions` — `require_manager` (403 `MANAGER_ONLY`). Manual guest
+  check-in: resolve/create room, mint a 6-digit PIN (returned **once**, stored
+  bcrypt), create the `guest_sessions` row — the production path that replaces the
+  dev seed script. `services/guest_session_service.py`.
+Full request/response shapes live in **`docs/API.md`** (the UI's source of truth).
+
 ## Supabase Realtime Subscriptions
 Enable realtime on these tables ONLY:
 - `requests` — staff kanban board live updates
@@ -176,6 +192,8 @@ GEMINI_API_KEY=                # or GOOGLE_API_KEY (either is read)
 DEEPGRAM_API_KEY=
 AI_MODEL=gemini-2.5-flash      # optional; any LangChain-supported model
 AI_MODEL_PROVIDER=google_genai # optional; e.g. anthropic, openai
+AI_MAX_RETRIES=1               # optional; cap client retries so a 429 degrades fast (BF-002)
+AI_TIMEOUT=20                  # optional; per-call timeout (s) so a turn never hangs
 
 # Backend behavior (all optional, sensible defaults)
 GUEST_ACCESS_MODE=mobile       # mobile | tablet | both
@@ -196,20 +214,29 @@ NEXT_PUBLIC_API_BASE_URL=
 ```
 
 ## Build Order (Follow This Sequence)
-1. Supabase schema + enums + RLS policies
-2. FastAPI project setup + fast-authkit integration + User model extension
-3. Hotel isolation middleware + rate limiting
-4. Guest PIN auth custom flow
-5. AI service abstraction (Gemini + Deepgram)
-6. Request creation + AI classification endpoint
-7. Supabase Realtime setup
-8. Next.js — landing + auth screens
-9. Next.js — Guest app (PIN → home → chat → requests → guide → offers → checkout)
-10. Next.js — Staff dashboard (kanban, request detail panel)
-11. Next.js — Manager dashboard (overview, guest journey, alerts, analytics)
-12. Next.js — Admin panel (users, roles, tablets, hotel setup, PMS)
-13. Vercel + Railway deployment config
-14. GitHub Actions CI/CD
+Steps **1–12 are IMPLEMENTED and merged to `main`** (backend 1–6; realtime folded
+into the UI; Next.js app `apps/web/` 8–12). Remaining: 13–14 + the deferred items
+below. See `docs/BUGFIXES.md` for fixes found along the way.
+1. ✅ Supabase schema + enums + RLS policies
+2. ✅ FastAPI project setup + fast-authkit integration + User model extension
+3. ✅ Hotel isolation middleware + rate limiting
+4. ✅ Guest PIN auth custom flow
+5. ✅ AI service abstraction (Gemini + Deepgram)
+6. ✅ Request creation + AI classification endpoint
+7. ✅ Supabase Realtime (publication in step-1 migration; consumed by the UI)
+8. ✅ Next.js — landing + auth screens
+9. ✅ Next.js — Guest app (PIN → home → chat → requests → guide → offers → checkout)
+10. ✅ Next.js — Staff dashboard (live kanban + request detail/status actions)
+11. ✅ Next.js — Manager dashboard (overview, department load, alerts)
+12. ✅ Next.js — Admin panel (guest check-in + PIN, in-house guests, team)
+13. ⬜ Vercel + Railway deployment config
+14. ⬜ GitHub Actions CI/CD
+
+**Deferred / roadmap (not yet built):** tablets + PMS integration (tables kept);
+hotel onboarding/provisioning (who creates the hotel tenant + first admin);
+guide/amenities backend; persisted guest rating; thorough AI testing (free-tier
+429 caveat, BF-002). The guest "guide" is a placeholder until an amenities backend
+exists.
 
 ## UI/UX Design System
 - **Colors**: Navy #0F1E3C (primary), Gold #C9A84C (accent), Stone #F2EDE8 (background)
