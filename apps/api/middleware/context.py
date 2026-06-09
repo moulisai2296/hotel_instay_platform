@@ -147,3 +147,17 @@ async def require_staff(ctx: RequestContext = Depends(get_context)) -> RequestCo
             headers={"X-Error-Code": "STAFF_ONLY"},
         )
     return ctx
+
+
+_MANAGER_ROLES = frozenset({"hotel_manager", "admin"})
+
+
+async def require_manager(ctx: RequestContext = Depends(get_context)) -> RequestContext:
+    """Restrict a route to hotel managers / admins (e.g. guest check-in)."""
+    if ctx.app_role not in _MANAGER_ROLES:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Manager or admin only",
+            headers={"X-Error-Code": "MANAGER_ONLY"},
+        )
+    return ctx

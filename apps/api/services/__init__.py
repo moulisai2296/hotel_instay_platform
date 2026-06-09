@@ -3,6 +3,7 @@
 from .ai_service import AIService, AIServiceError, get_ai_service
 from .request_service import RequestRepository, RequestService
 from .staff_service import StaffRequestService
+from .guest_session_service import GuestSessionService
 from .guest_auth_service import (
     GuestAuthService,
     ResolvedSession,
@@ -31,4 +32,5 @@ __all__ = [
     "RequestService",
     "RequestRepository",
     "StaffRequestService",
+    "GuestSessionService",
 ]

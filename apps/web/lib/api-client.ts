@@ -10,6 +10,8 @@ import { env } from "./env";
 import type {
   ApiErrorCode,
   AuthTokens,
+  CreateGuestSessionBody,
+  CreateGuestSessionResult,
   CreateRequestBody,
   CreateRequestResponse,
   GuestProfile,
@@ -143,6 +145,17 @@ export const api = {
         method: "PATCH",
         token,
         body: { status, note: note ?? null },
+      }),
+  },
+
+  // ── Admin / manager actions ────────────────────────────────────────────────
+  admin: {
+    /** Manual guest check-in → creates a session, returns the PIN once. */
+    checkIn: (token: string, body: CreateGuestSessionBody) =>
+      apiFetch<CreateGuestSessionResult>("/guest-sessions", {
+        method: "POST",
+        token,
+        body,
       }),
   },
 

@@ -23,6 +23,7 @@ from middleware import limiter, rate_limit_handler
 from routers import ai as ai_router
 from routers import guest as guest_router
 from routers import requests as requests_router
+from routers import sessions as sessions_router
 
 
 def _cors_origins() -> list[str]:
@@ -103,6 +104,8 @@ def create_app() -> FastAPI:
     # Guest request creation + AI classification, and voice transcription.
     app.include_router(requests_router.router)
     app.include_router(ai_router.router)
+    # Staff-side manual guest check-in (room + PIN allocation).
+    app.include_router(sessions_router.router)
 
     @app.get("/health", tags=["meta"])
     async def health():
