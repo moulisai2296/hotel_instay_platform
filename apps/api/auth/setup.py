@@ -24,9 +24,21 @@ def get_engine() -> AsyncEngine:
     """Create (once) the async SQLAlchemy engine from AUTHKIT_DATABASE_URL."""
     database_url = os.getenv("AUTHKIT_DATABASE_URL", "sqlite+aiosqlite:///./authkit.db")
     connect_args: dict = {}
+    engine_kwargs: dict = {"future": True}
     if "sqlite" in database_url:  # SQLite async needs this for cross-thread use
         connect_args["check_same_thread"] = False
-    return create_async_engine(database_url, connect_args=connect_args, future=True)
+    else:
+        # Postgres via the Supabase pooler: the pooler silently drops idle
+        # connections, which otherwise surface as "connection is closed" or, on a
+        # half-open socket, a request that hangs forever. pre_ping validates a
+        # connection before use (reconnecting if dead); pool_recycle retires old
+        # ones proactively. statement_cache_size=0 keeps us pgbouncer-safe, and
+        # command_timeout caps any single query so it can never hang indefinitely.
+        engine_kwargs["pool_pre_ping"] = True
+        engine_kwargs["pool_recycle"] = 1800
+        connect_args["statement_cache_size"] = 0
+        connect_args["command_timeout"] = 30
+    return create_async_engine(database_url, connect_args=connect_args, **engine_kwargs)
 
 
 @lru_cache(maxsize=1)
