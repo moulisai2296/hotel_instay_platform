@@ -34,9 +34,11 @@ export default function StaffLoginPage() {
 
   const onSubmit = async (values: FormValues) => {
     try {
-      await login(values.email, values.password);
+      const profile = await login(values.email, values.password);
       toast.success("Welcome back");
-      router.replace("/dashboard");
+      const isManager =
+        profile.role === "hotel_manager" || profile.role === "admin";
+      router.replace(isManager ? "/manager" : "/dashboard");
     } catch (err) {
       const message =
         err instanceof ApiError && err.status === 401
