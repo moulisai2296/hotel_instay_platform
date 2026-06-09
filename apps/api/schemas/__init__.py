@@ -7,6 +7,7 @@ from .request import (
     CreateRequestResponse,
     RequestSummary,
     TranscribeResponse,
+    UpdateRequestStatusRequest,
 )
 
 __all__ = [
@@ -20,4 +21,5 @@ __all__ = [
     "CreateRequestResponse",
     "RequestSummary",
     "TranscribeResponse",
+    "UpdateRequestStatusRequest",
 ]

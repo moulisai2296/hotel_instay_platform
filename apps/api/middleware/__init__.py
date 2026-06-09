@@ -5,6 +5,7 @@ from .context import (
     assert_hotel_access,
     get_context,
     require_guest,
+    require_staff,
     verify_path_hotel,
 )
 from .rate_limit import (
@@ -21,6 +22,7 @@ __all__ = [
     "assert_hotel_access",
     "verify_path_hotel",
     "require_guest",
+    "require_staff",
     "limiter",
     "rate_limit_handler",
     "get_user_or_ip_key",
