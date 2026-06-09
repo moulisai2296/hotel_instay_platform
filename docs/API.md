@@ -51,8 +51,12 @@ Validation errors add `"details"`. Codes the UI should handle:
 | `INVALID_TOKEN` | 401 | Malformed/expired/not an access token |
 | `INVALID_CREDENTIALS` | 401 | Wrong room/PIN (uniform — never says which) |
 | `GUEST_ONLY` | 403 | Guest-only route hit by a non-guest |
+| `STAFF_ONLY` | 403 | Staff-only route hit by a guest |
+| `MANAGER_ONLY` | 403 | Manager/admin-only route (e.g. check-in) hit by lower role |
 | `HOTEL_MISMATCH` | 403 | Cross-hotel access attempt |
+| `DEPARTMENT_MISMATCH` | 403 | Staff acting on a request outside their department |
 | `MODE_DISABLED` | 403 | Guest access mode not enabled for this deployment |
+| `NOT_FOUND` | 404 | Target row (e.g. request) does not exist |
 | `NO_DEPARTMENT` | 422 | Hotel has no active department to route to |
 | `VALIDATION_ERROR` | 422 | Body failed schema validation (+`details`) |
 | `RATE_LIMITED` | 429 | Too many requests (`Retry-After` header) |
@@ -184,6 +188,45 @@ Returns text only (no storage yet). The client then submits it via
 
 ---
 
+## 5.1 Staff & manager write actions
+
+Writes from the staff/manager/admin app. Reads (kanban, manager overview,
+in-house guests) go via Supabase + RLS (§6), not here.
+
+### PATCH `/requests/{request_id}/status`   *(staff token — any non-guest role)*
+Move a request to a new status (kanban) + append a `request_events` audit row.
+```jsonc
+// request — note optional
+{ "status": "in_progress", "note": "On it" }
+// 200 — the updated request (same shape as RequestSummary, §5)
+{ "id": "uuid", "status": "in_progress", "priority": "high",
+  "department_id": "uuid", "ai_title": "Extra towels x2",
+  "items": [], "sentiment": 0.2, "created_at": "…Z" }
+```
+Side effects: → `in_progress` claims the request for the actor if unassigned; →
+`completed` stamps `completed_at` + `resolution_time_mins`. `status` ∈
+`request_status` (§7). Errors: `403 STAFF_ONLY` (guest), `403 DEPARTMENT_MISMATCH`
+(staff/dept_manager acting outside their department), `403 HOTEL_MISMATCH`,
+`404 NOT_FOUND`.
+
+### POST `/guest-sessions`   *(manager/admin token)*
+Manual guest check-in: allocate the room + mint a 6-digit PIN, returned **once**
+(stored only as a bcrypt hash). The production path that replaces the dev seed
+script.
+```jsonc
+// request — hotel_id comes from the JWT; pin optional (6 digits) else generated
+{ "room_number": "305", "guest_name": "Jane Doe", "checkout_date": "2026-06-12",
+  "checkin_date": null, "num_guests": 2, "guest_email": null, "pin": null }
+// 201 Created
+{ "session_id": "uuid", "room_number": "305", "guest_name": "Jane Doe",
+  "pin": "419273", "checkin_date": "2026-06-10", "checkout_date": "2026-06-12" }
+```
+The room is resolved by number within the manager's hotel (created if absent).
+`403 MANAGER_ONLY` for staff/dept_manager/guest; `422 VALIDATION_ERROR` if
+`checkout_date` precedes check-in or `pin` isn't 6 digits.
+
+---
+
 ## 6. Direct-from-Supabase reads (NOT REST)
 
 Per the architecture decision (DESIGN_NOTES #8), **simple "rows that belong to me"
@@ -208,6 +251,16 @@ supabase.from('guest_interactions')
 ```ts
 supabase.from('requests').select('*')           // RLS: own session / own hotel+dept
 supabase.from('request_events').select('*')     // status timeline (append-only)
+```
+**Manager / admin reads** (RLS: managers hotel-wide, staff dept-scoped):
+```ts
+// manager overview aggregation
+supabase.from('requests').select('id,status,priority,department_id,created_at,completed_at,resolution_time_mins')
+supabase.from('departments').select('id,type,display_name')   // tenant-wide
+// admin: in-house guests (room via embed) + team
+supabase.from('guest_sessions').select('id,guest_name,checkin_date,checkout_date,room:rooms(room_number)').eq('is_checked_out', false)
+supabase.from('users').select('id,display_name,email,role')   // staff see colleagues
+// guest_interactions (chat content) are readable by managers+, NOT plain staff
 ```
 **Realtime** (live kanban + tracker + alert bell) — subscribe to:
 `requests`, `request_events`, `notifications`, `tablets`. Example:

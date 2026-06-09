@@ -1,18 +1,21 @@
 {
   "info": {
     "name": "InStayOS API",
-    "description": "InStayOS backend (FastAPI) through Step 6. Run Auth → Login (captures staff_token) and Guest → Verify PIN (captures guest_token); later requests reuse them automatically. See docs/API.md for the full reference incl. the direct-from-Supabase read paths.",
+    "description": "InStayOS backend (FastAPI) through the UI build (steps 1-12). Run Auth → Login (captures staff_token) and Guest → Verify PIN (captures guest_token); later requests reuse them automatically. 'Requests & AI → Create request' captures request_id so the staff status PATCH chains off it. Defaults target the seeded smoke-test hotel. See docs/API.md for the full reference incl. the direct-from-Supabase read paths.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
     { "key": "base_url", "value": "http://localhost:8000" },
-    { "key": "hotel_slug", "value": "grand-hotel" },
-    { "key": "room_number", "value": "412" },
-    { "key": "pin", "value": "481920" },
-    { "key": "email", "value": "manager@hotel.com" },
+    { "key": "hotel_slug", "value": "smoke-test-hotel" },
+    { "key": "room_number", "value": "101" },
+    { "key": "pin", "value": "123456" },
+    { "key": "email", "value": "smoketest.manager@example.com" },
     { "key": "password", "value": "SmokeTest123!" },
     { "key": "staff_token", "value": "" },
-    { "key": "guest_token", "value": "" }
+    { "key": "guest_token", "value": "" },
+    { "key": "request_id", "value": "" },
+    { "key": "checkout_date", "value": "" },
+    { "key": "issued_pin", "value": "" }
   ],
   "item": [
     {
@@ -113,6 +116,18 @@
       "item": [
         {
           "name": "Create request (service_request)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "if (j.request && j.request.id) { pm.collectionVariables.set('request_id', j.request.id); }"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "header": [
@@ -122,8 +137,9 @@
             "url": { "raw": "{{base_url}}/requests/create", "host": ["{{base_url}}"], "path": ["requests", "create"] },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"raw_input\": \"I need 2 extra towels in room 412\",\n  \"input_mode\": \"text\"\n}"
-            }
+              "raw": "{\n  \"raw_input\": \"I need 2 extra towels\",\n  \"input_mode\": \"text\"\n}"
+            },
+            "description": "Captures request.id into {{request_id}} for the staff status PATCH."
           }
         },
         {
@@ -170,6 +186,70 @@
                 { "key": "audio", "type": "file", "src": [], "description": "A .wav/.mp3 voice note" }
               ]
             }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Staff & Manager (writes)",
+      "item": [
+        {
+          "name": "Update request status (staff)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{staff_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/requests/{{request_id}}/status",
+              "host": ["{{base_url}}"],
+              "path": ["requests", "{{request_id}}", "status"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"in_progress\",\n  \"note\": \"On it\"\n}"
+            },
+            "description": "Move a request through the kanban. Needs a staff token + {{request_id}} (run Create request first). status ∈ pending|assigned|in_progress|completed|escalated|cancelled. 403 STAFF_ONLY (guest) / DEPARTMENT_MISMATCH / HOTEL_MISMATCH; 404 NOT_FOUND."
+          }
+        },
+        {
+          "name": "Check in guest (manager/admin)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const d = new Date(Date.now() + 2 * 864e5).toISOString().slice(0, 10);",
+                  "pm.collectionVariables.set('checkout_date', d);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const j = pm.response.json();",
+                  "if (j.pin) { pm.collectionVariables.set('issued_pin', j.pin); console.log('Issued PIN:', j.pin); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{staff_token}}" }
+            ],
+            "url": { "raw": "{{base_url}}/guest-sessions", "host": ["{{base_url}}"], "path": ["guest-sessions"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"room_number\": \"305\",\n  \"guest_name\": \"Jane Doe\",\n  \"checkout_date\": \"{{checkout_date}}\",\n  \"num_guests\": 2\n}"
+            },
+            "description": "Manual check-in (manager/admin token). Returns a 6-digit PIN once -> captured into {{issued_pin}} (and logged). The guest can then Verify PIN with room_number=305 + that PIN. 403 MANAGER_ONLY for staff/dept_manager/guest."
           }
         }
       ]
