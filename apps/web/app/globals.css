@@ -1,0 +1,102 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * InStayOS design tokens.
+ * Light theme  = Staff / Manager / Admin dashboards (stone/white bg, navy text).
+ * Dark theme   = Guest app (navy bg, gold accents). Applied via `.dark` on the
+ *                guest route-group wrapper. Values are HSL channels (no hsl())
+ *                so Tailwind can apply opacity, per shadcn convention.
+ */
+@layer base {
+  :root {
+    --background: 36 30% 96%; /* warm stone */
+    --foreground: 220 50% 14%; /* navy ink */
+
+    --card: 0 0% 100%;
+    --card-foreground: 220 50% 14%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 50% 14%;
+
+    --primary: 220 60% 15%; /* navy */
+    --primary-foreground: 36 30% 96%;
+
+    --secondary: 36 24% 91%;
+    --secondary-foreground: 220 50% 15%;
+
+    --muted: 36 20% 91%;
+    --muted-foreground: 220 12% 42%;
+
+    --accent: 43 54% 54%; /* gold */
+    --accent-foreground: 220 60% 15%;
+
+    --destructive: 0 72% 48%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 152 55% 40%;
+    --warning: 35 92% 48%;
+
+    --border: 220 18% 86%;
+    --input: 220 18% 86%;
+    --ring: 43 54% 54%; /* gold focus ring */
+
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 220 60% 15%; /* navy */
+    --foreground: 36 30% 96%; /* stone/cream */
+
+    --card: 219 50% 19%; /* navy 800 */
+    --card-foreground: 36 30% 96%;
+
+    --popover: 219 54% 18%;
+    --popover-foreground: 36 30% 96%;
+
+    --primary: 43 54% 54%; /* gold is the guest hero accent */
+    --primary-foreground: 220 60% 12%;
+
+    --secondary: 219 38% 24%;
+    --secondary-foreground: 36 30% 96%;
+
+    --muted: 219 32% 24%;
+    --muted-foreground: 36 14% 72%;
+
+    --accent: 43 54% 54%;
+    --accent-foreground: 220 60% 12%;
+
+    --destructive: 0 72% 56%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 152 50% 48%;
+    --warning: 35 90% 56%;
+
+    --border: 220 24% 30%;
+    --input: 220 24% 30%;
+    --ring: 43 54% 54%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  /* Subtle glass surface used across guest cards. */
+  .glass {
+    background: rgba(255, 255, 255, 0.05);
+    border: 0.5px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(8px);
+  }
+}
